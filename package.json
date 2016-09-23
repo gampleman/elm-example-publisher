@@ -1,0 +1,35 @@
+{
+  "name": "elm-example-publisher",
+  "version": "1.0.0",
+  "bin": "src/cli.js",
+  "description": "Create examples to publish in gh-pages from elm examples",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gampleman/elm-example-publisher.git"
+  },
+  "keywords": [
+    "elm",
+    "gh-pages"
+  ],
+  "author": "Jakub Hampl <kopomir@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gampleman/elm-example-publisher/issues"
+  },
+  "homepage": "https://github.com/gampleman/elm-example-publisher#readme",
+  "dependencies": {
+    "commander": "^2.9.0",
+    "glob": "^7.1.0",
+    "highlight.js": "^9.7.0",
+    "lodash": "^4.16.1",
+    "marked": "^0.3.6",
+    "node-elm-compiler": "^4.1.4",
+    "promise": "^7.1.1",
+    "sharp": "^0.16.0",
+    "webshot": "^0.18.0"
+  }
+}

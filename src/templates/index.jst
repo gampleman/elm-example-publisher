@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Examples</title>
+    <style media="screen">
+      body {
+        font-family: Helvetica, sans-serif;
+        display: flex;
+      }
+      ul {
+        list-style-type: none;
+        padding: 0;
+      }
+      li {
+        border: 1px solid black;
+        float: left;
+        width: 330px;
+        margin: 20px;
+        padding: 10px 10px 0 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Examples</h1>
+
+      <ul>
+        <% _.each(allExamples, function(example) { %>
+          <li>
+            <a href="<%= example.name %>">
+              <img src="<%= example.name %>/preview.png" srcset="<%= example.name %>/preview.png 1x, <%= example.name %>/preview@2x.png 2x, <%= example.name %>/preview@3x.png 3x" />
+              <h3><%= example.name %></h3>
+            </a>
+          </li>
+        <% }); %>
+      </ul>
+    </main>
+  </body>
+</html>

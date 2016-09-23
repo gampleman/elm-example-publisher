@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title><%= name %> Example</title>
+    <style media="screen">
+      body {
+        font-family: Helvetica, sans-serif;
+        display: flex;
+      }
+      main {
+        order: 1;
+      }
+      aside {
+        width: 300px;
+      }
+      aside ul {
+        padding: 0;
+      }
+      aside li {
+        list-style-type: none;
+        margin: 10px;
+      }
+      aside li.active a {
+        text-decoration: none;
+      }
+      iframe {
+        border: 1px solid black;
+      }
+      hr:first-of-type {
+        display: none;
+      }
+      <%= style.source('atom-one-light') %>
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1><%= name %></h1>
+
+      <iframe src="<%= iframe %>" width="990" height="504" frameborder="1"></iframe>
+
+      <% _.each(sources, function(source) { %>
+        <hr />
+        <h3><%= source.filename %></h3>
+        <div class="description"><%= source.firstComment %></div>
+        <pre><code class="elm"><%= source.highlighted %></code></pre>
+      <% }); %>
+    </main>
+    <aside>
+      <h2>Examples</h2>
+      <ul>
+        <% _.each(allExamples, function(example) { %>
+          <li <% if (example.name === name) { %>class="active"<% } %>>
+            <a href="<%= example.name %>"><%= example.name %></a>
+          </li>
+        <% }); %>
+      </ul>
+    </aside>
+  </body>
+</html>
