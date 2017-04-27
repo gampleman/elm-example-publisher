@@ -37,11 +37,11 @@
     <main>
       <h1><%= name %></h1>
 
-      <iframe src="<%= iframe %>" width="990" height="504" frameborder="1"></iframe>
+      <iframe src="<%= iframe %>" width="<%= width %>" height="<%= height %>" frameborder="1"></iframe>
 
       <% _.each(sources, function(source) { %>
         <hr />
-        <h3><%= source.filename %></h3>
+        <h3><%= source.basename %></h3>
         <div class="description"><%= source.firstComment %></div>
         <pre><code class="elm"><%= source.highlighted %></code></pre>
       <% }); %>
@@ -51,7 +51,7 @@
       <ul>
         <% _.each(allExamples, function(example) { %>
           <li <% if (example.name === name) { %>class="active"<% } %>>
-            <a href="<%= example.name %>"><%= example.name %></a>
+            <a href="../<%= example.name %>"><%= example.name %></a>
           </li>
         <% }); %>
       </ul>

@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Examples</title>
+    <title><%= custom.name || package.name || "Examples" %></title>
     <style media="screen">
       body {
         font-family: Helvetica, sans-serif;
@@ -23,13 +23,13 @@
   </head>
   <body>
     <main>
-      <h1>Examples</h1>
-
+      <h1><%= custom.name || package.name || "Examples" %></h1>
+      <p class="lead"><%= custom.summary || package.summary %></p>
       <ul>
         <% _.each(allExamples, function(example) { %>
           <li>
             <a href="<%= example.name %>">
-              <img src="<%= example.name %>/preview.png" srcset="<%= example.name %>/preview.png 1x, <%= example.name %>/preview@2x.png 2x, <%= example.name %>/preview@3x.png 3x" />
+              <img src="<%= example.name %>/preview.png" srcset="<%= example.name %>/preview.png 1x, <%= example.name %>/preview@2x.png 2x, <%= example.name %>/preview@3x.png 3x" width="<%= Math.floor(width / 3) %>" height="<%= Math.floor(height / 3) %>" />
               <h3><%= example.name %></h3>
             </a>
           </li>

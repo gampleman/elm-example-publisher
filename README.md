@@ -17,6 +17,10 @@ Will be published to NPM soon. (Please post an issue if you need this urgently).
 
 In the meantime you can clone the repo and run `npm link`.
 
+## Usage
+
+Run this from the directory as you would run elm make.
+
 ## License
 
 MIT
