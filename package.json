@@ -23,13 +23,17 @@
   "homepage": "https://github.com/gampleman/elm-example-publisher#readme",
   "dependencies": {
     "commander": "^2.9.0",
+    "file-url": "^2.0.2",
     "glob": "^7.1.0",
     "highlight.js": "^9.7.0",
-    "lodash": "^4.16.1",
-    "marked": "^0.3.6",
-    "node-elm-compiler": "^4.3.1",
+    "html-minifier": "^3.5.20",
+    "lodash": "^4.17.11",
+    "marked": "^0.5.1",
+    "node-elm-compiler": "^5.0.1",
     "promise": "^7.1.1",
-    "sharp": "^0.16.0",
-    "webshot": "^0.18.0"
+    "sharp": "^0.20.0",
+    "static-server": "^2.2.1",
+    "webshot": "^0.18.0",
+    "workbox-build": "^3.6.2"
   }
 }

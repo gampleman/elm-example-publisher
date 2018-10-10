@@ -2,11 +2,14 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title><%= custom.name || package.name || "Examples" %></title>
+    <title>Examples</title>
     <style media="screen">
       body {
         font-family: Helvetica, sans-serif;
         display: flex;
+      }
+      h1, .lead {
+        margin-left: 20px;
       }
       ul {
         list-style-type: none;
@@ -23,14 +26,18 @@
   </head>
   <body>
     <main>
-      <h1><%= custom.name || package.name || "Examples" %></h1>
-      <p class="lead"><%= custom.summary || package.summary %></p>
+      <h1>Examples</h1>
+      <p class="lead">My package examples</p>
       <ul>
         <% _.each(allExamples, function(example) { %>
           <li>
             <a href="<%= example.name %>">
-              <img src="<%= example.name %>/preview.png" srcset="<%= example.name %>/preview.png 1x, <%= example.name %>/preview@2x.png 2x, <%= example.name %>/preview@3x.png 3x" width="<%= Math.floor(width / 3) %>" height="<%= Math.floor(height / 3) %>" />
-              <h3><%= example.name %></h3>
+              <picture>
+                <source srcset="<%= example.name %>/preview.webp 1x, <%= example.name %>/preview@2x.webp 2x, <%= example.name %>/preview@3x.webp 3x" type="image/webp" />
+                <source srcset="<%= example.name %>/preview.png 1x, <%= example.name %>/preview@2x.png 2x, <%= example.name %>/preview@3x.png 3x" type="image/png" />
+                <img src="<%= example.name %>/preview.png" width="<%= Math.floor(width / 3) %>" height="<%= Math.floor(height / 3) %>" alt="" />
+              </picture>
+              <h3><%= example.displayName %></h3>
             </a>
           </li>
         <% }); %>
