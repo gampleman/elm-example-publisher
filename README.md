@@ -6,7 +6,7 @@ The main idea is that you create a directory full of small elm programs that
 serve as examples of the library you are using. You configure GitHub to use your
 docs folder as the source for gh-pages. Then you run
 
-    $ elm example-publisher examples docs
+    $ elm-example-publisher examples docs
 
 This will generate html versions with highlighted source code to show off the
 examples.
