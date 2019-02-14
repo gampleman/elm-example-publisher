@@ -96,17 +96,22 @@ module.exports = function(options) {
   }
 
   function filterFiles(files) {
-    return Promise.all(files.map(function(file) {
-      return fs.readFile(file, 'utf8').then(function(source) {
-        if (!source.match(/module \w*( exposing \(.*main.*\))?\w*\n/i)) {
+    return Promise.all(files.map(function (file) {
+      return fs.readFile(file, 'utf8').then(function (source) {
+        if (!source.match(/module \w* exposing \(.*main.*\)\w*/i)) {
           return false;
         } else {
+          console.log("Found " + file);
           return file;
         }
       });
     })).then(function(f) {
       return f;
     }).then(_.partial(_.filter, _, _.identity));
+      .then(function (f) {
+        console.log("Found " + f.length + " Examples");
+        return f;
+      });
   }
 
   function parseExampleConfig(f) {
