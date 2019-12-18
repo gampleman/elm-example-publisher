@@ -1,6 +1,6 @@
 {
   "name": "elm-example-publisher",
-  "version": "1.0.0",
+  "version": "0.0.2",
   "bin": "src/cli.js",
   "description": "Create examples to publish in gh-pages from elm examples",
   "main": "index.js",
@@ -15,6 +15,9 @@
     "elm",
     "gh-pages"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "author": "Jakub Hampl <kopomir@gmail.com>",
   "license": "MIT",
   "bugs": {
@@ -22,18 +25,27 @@
   },
   "homepage": "https://github.com/gampleman/elm-example-publisher#readme",
   "dependencies": {
-    "commander": "^2.9.0",
-    "file-url": "^2.0.2",
-    "glob": "^7.1.0",
-    "highlight.js": "^9.7.0",
-    "html-minifier": "^3.5.20",
+    "capture-website": "^0.8.0",
+    "commander": "^2.20.0",
+    "copy-dir": "^1.2.0",
+    "file-url": "^3.0.0",
+    "glob": "^7.1.4",
+    "highlight.js": "^9.15.8",
+    "html-minifier": "^4.0.0",
+    "jsdom": "^15.2.1",
     "lodash": "^4.17.11",
-    "marked": "^0.5.1",
-    "node-elm-compiler": "^5.0.1",
-    "promise": "^7.1.1",
-    "sharp": "^0.20.0",
+    "marked": "^0.6.2",
+    "natives": "^1.1.6",
+    "node-elm-compiler": "^5.0.4",
+    "promise": "^8.0.0",
+    "sharp": "^0.22.0",
     "static-server": "^2.2.1",
-    "webshot": "^0.18.0",
-    "workbox-build": "^3.6.2"
+    "workbox-build": "^4.3.0"
+  },
+  "peerDependencies": {
+    "elm": "^0.19.0"
+  },
+  "devDependencies": {
+    "prettier": "^1.19.1"
   }
 }
