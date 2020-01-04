@@ -19,6 +19,8 @@ type alias Example tags =
     , tags : tags
     , width : Int
     , height : Int
+    , source : String
+    , description: String
     }
 
 
@@ -137,13 +139,15 @@ subscriptions model =
 
 exampleDecoder tagDecoder =
     Decode.list
-        (Decode.map5
-            (\filename basename tags width height ->
+        (Decode.map7
+            (\filename basename tags width height source description ->
                 { filename = filename
                 , basename = basename
                 , tags = tags
                 , width = width
                 , height = height
+                , source = source
+                , description = description
                 }
             )
             (Decode.field "filename" Decode.string)
@@ -151,4 +155,6 @@ exampleDecoder tagDecoder =
             (Decode.field "tags" tagDecoder)
             (Decode.field "width" Decode.int)
             (Decode.field "height" Decode.int)
+            (Decode.field "source" Decode.string)
+            (Decode.field "description" Decode.string)
         )

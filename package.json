@@ -1,6 +1,6 @@
 {
   "name": "elm-example-publisher",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "bin": "src/cli.js",
   "description": "Create examples to publish in gh-pages from elm examples",
   "main": "index.js",

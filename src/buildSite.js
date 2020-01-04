@@ -4,15 +4,13 @@ const { JSDOM } = require("jsdom"),
   os = require("os"),
   fs = require("fs").promises,
   minify = require("html-minifier").minify,
-  copyDir = require("copy-dir").sync;
+  copyDir = require("copy-dir").sync,
+  hljs = require('highlight.js');
 
-module.exports = async (
-  examples,
-  inputDir,
+const prepareTemplate = async (inputDir,
   outputDir,
   templateFile,
-  assetDir
-) => {
+  assetDir) => {
   const workDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "elm-example-publisher-")
   );
@@ -38,7 +36,11 @@ module.exports = async (
   process.chdir(workDir);
   const source = await compileToString([absTemplatePath], { optimize: true });
   process.chdir(oldcwd);
+  copyDir(assetDir, path.join(outputDir, path.relative(curDir, assetDir)));
+  return source;
+}
 
+const runTemplate = async (source, examples) => {
   const dom = new JSDOM(
     `<!DOCTYPE html><html><head><!--replace-headers--></head><body><div></div></body></html>`,
     { pretendToBeVisual: true, runScripts: "outside-only" }
@@ -46,7 +48,7 @@ module.exports = async (
 
   dom.window.eval(source);
 
-  const htmls = await new Promise((resolve, reject) => {
+  return await new Promise((resolve, reject) => {
     let expecting = "index";
     let remaining = examples.slice();
     const results = examples.reduce(
@@ -85,18 +87,38 @@ module.exports = async (
       results[name].meta = meta;
     });
   });
+}
 
+const postprocessOutput = async htmls =>
+  Object.entries(htmls).map(([key, item]) => {
+    const dom = new JSDOM(item.html);
+    dom.window.document.querySelectorAll('pre code').forEach((block) => {
+      hljs.highlightBlock(block);
+    });
+    return [key, dom.serialize().replace(
+      "<!--replace-headers-->",
+      item.meta
+        .map(({ key, value }) => `<meta name="${key}" content="${value}">`)
+        .join("\n")
+    )]
+  });
+
+
+module.exports = async (
+  examples,
+  inputDir,
+  outputDir,
+  templateFile,
+  assetDir
+) => {
+  const source = await prepareTemplate(inputDir, outputDir, templateFile, assetDir);
+  const htmls = await postprocessOutput(await runTemplate(source, examples));
   // write files
 
   await Promise.all(
-    Object.entries(htmls).map(async ([key, item]) => {
+    htmls.map(async ([key, item]) => {
       const html = minify(
-        item.html.replace(
-          "<!--replace-headers-->",
-          item.meta
-            .map(({ key, value }) => `<meta name="${key}" content="${value}">`)
-            .join("\n")
-        ),
+        item,
         {
           html5: true,
           minifyCSS: {
@@ -122,5 +144,5 @@ module.exports = async (
     })
   );
 
-  copyDir(assetDir, path.join(outputDir, path.relative(curDir, assetDir)));
+
 };
