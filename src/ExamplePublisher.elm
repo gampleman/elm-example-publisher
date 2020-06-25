@@ -1,4 +1,4 @@
-port module ExamplePublisher exposing (Document, Example, application)
+port module ExamplePublisher exposing (Document, Example, Program, application)
 
 import Browser
 import Html exposing (Html)
@@ -20,7 +20,8 @@ type alias Example tags =
     , width : Int
     , height : Int
     , source : String
-    , description: String
+    , description : String
+    , ellieLink : Maybe String
     }
 
 
@@ -41,12 +42,16 @@ type Msg
     | Noop
 
 
+type alias Program tags =
+    Platform.Program Value (Model tags) Msg
+
+
 application :
     { tagDecoder : Decoder tags
     , indexView : List (Example tags) -> Document
     , showView : Example tags -> List (Example tags) -> Document
     }
-    -> Program Value (Model tags) Msg
+    -> Program tags
 application config =
     Browser.document
         { init = init config.tagDecoder config.indexView
@@ -139,8 +144,8 @@ subscriptions model =
 
 exampleDecoder tagDecoder =
     Decode.list
-        (Decode.map7
-            (\filename basename tags width height source description ->
+        (Decode.map8
+            (\filename basename tags width height source description ellieLink ->
                 { filename = filename
                 , basename = basename
                 , tags = tags
@@ -148,6 +153,7 @@ exampleDecoder tagDecoder =
                 , height = height
                 , source = source
                 , description = description
+                , ellieLink = ellieLink
                 }
             )
             (Decode.field "filename" Decode.string)
@@ -157,4 +163,5 @@ exampleDecoder tagDecoder =
             (Decode.field "height" Decode.int)
             (Decode.field "source" Decode.string)
             (Decode.field "description" Decode.string)
+            (Decode.maybe (Decode.at [ "tags", "ellieLink" ] Decode.string))
         )

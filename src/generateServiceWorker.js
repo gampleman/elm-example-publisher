@@ -1,12 +1,14 @@
 const path = require("path"),
-  workboxBuild = require("workbox-build");
+  workboxBuild = require("workbox-build"),
+  log = require("./log");
 
-module.exports = async outputDir => {
-  const target = path.join(outputDir, "service-worker.js");
+module.exports = async (outputDir) => {
+  log.heading("Generating service worker");
+  const target = path.join(outputDir.absolute, "service-worker.js");
   await workboxBuild.generateSW({
     swDest: target,
-    globDirectory: outputDir,
-    globPatterns: ["**/*.{html,css}", "**/preview.png"]
+    globDirectory: outputDir.absolute,
+    globPatterns: ["**/*.{html,css}", "**/preview.png"],
   });
-  console.log("Succesfully generated ", target);
+  log.generated(path.join(outputDir.relative, "service-worker.js"));
 };

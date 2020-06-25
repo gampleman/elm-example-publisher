@@ -1,12 +1,13 @@
 const util = require("util"),
   glob = util.promisify(require("glob")),
   path = require("path"),
-  fs = require("fs").promises;
+  fs = require("fs").promises,
+  chalk = require("chalk");
 
-const findElligibleFiles = async inputDir => {
-  const files = await glob(inputDir + "/*.elm");
+const findElligibleFiles = async (inputDir) => {
+  const files = await glob(inputDir.absolute + "/*.elm");
   const fileDetails = await Promise.all(
-    files.map(async file => [file, await fs.readFile(file, "utf8")])
+    files.map(async (file) => [file, await fs.readFile(file, "utf8")])
   );
   return fileDetails.filter(([_, source]) =>
     source.match(/module \w*( exposing \((?:.*\bmain\b.*|\.\.)\))?\w*\n/i)
@@ -46,11 +47,12 @@ const parseDocComment = (filename, source, width, height) => {
     tags,
     basename: path.basename(filename, ".elm"),
     width: tags.width || width,
-    height: tags.height || height
+    height: tags.height || height,
   };
 };
 
 module.exports = async (inputDir, width, height) => {
+  console.log(chalk.green.bold("Gathering all elligble examples"));
   const examples = await findElligibleFiles(inputDir);
   return examples.map(([name, source]) =>
     parseDocComment(name, source, width, height)

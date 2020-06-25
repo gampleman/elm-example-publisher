@@ -5,21 +5,19 @@ const { JSDOM } = require("jsdom"),
   fs = require("fs").promises,
   minify = require("html-minifier").minify,
   copyDir = require("copy-dir").sync,
-  hljs = require('highlight.js');
+  hljs = require("highlight.js"),
+  log = require("./log");
 
-const prepareTemplate = async (inputDir,
-  outputDir,
-  templateFile,
-  assetDir) => {
+const prepareTemplate = async (inputDir, outputDir, templateFile, assetDir) => {
   const workDir = await fs.mkdtemp(
     path.join(os.tmpdir(), "elm-example-publisher-")
   );
-  const curDir = path.dirname(templateFile);
+  const curDir = path.dirname(templateFile.absolute);
 
   const elmJsonPath = path.join(curDir, "elm.json");
   const elmJson = await fs.readFile(elmJsonPath, "utf8").then(JSON.parse);
   elmJson["source-directories"] = elmJson["source-directories"]
-    .map(p => path.resolve(curDir, p))
+    .map((p) => path.resolve(curDir, p))
     .concat(["."]);
   await fs.writeFile(
     path.join(workDir, "elm.json"),
@@ -30,15 +28,23 @@ const prepareTemplate = async (inputDir,
     path.join(__dirname, "ExamplePublisher.elm"),
     path.join(workDir, "ExamplePublisher.elm")
   );
-  const absTemplatePath = path.resolve(templateFile);
 
   const oldcwd = process.cwd();
   process.chdir(workDir);
-  const source = await compileToString([absTemplatePath], { optimize: true });
+  const source = await compileToString([templateFile.absolute], {
+    optimize: true,
+  });
   process.chdir(oldcwd);
-  copyDir(assetDir, path.join(outputDir, path.relative(curDir, assetDir)));
+  log.generated("Compiled template");
+  copyDir(
+    assetDir.absolute,
+    path.join(outputDir.absolute, path.basename(assetDir.absolute))
+  );
+  log.generated(
+    path.join(outputDir.relative, path.basename(assetDir.absolute))
+  );
   return source;
-}
+};
 
 const runTemplate = async (source, examples) => {
   const dom = new JSDOM(
@@ -58,7 +64,7 @@ const runTemplate = async (source, examples) => {
       },
       { index: { html: "", meta: [] } }
     );
-    const observer = new dom.window.MutationObserver(ml => {
+    const observer = new dom.window.MutationObserver((ml) => {
       results[expecting].html = dom.serialize();
       const next = remaining.shift();
       if (next) {
@@ -72,13 +78,13 @@ const runTemplate = async (source, examples) => {
       subtree: true,
       childList: true,
       attribute: true,
-      characterData: true
+      characterData: true,
     });
     const elmApp = dom.window.Elm.Docs.init({
-      flags: examples
+      flags: examples,
     });
 
-    elmApp.ports.errorPort.subscribe(err => {
+    elmApp.ports.errorPort.subscribe((err) => {
       console.error("port error:", err);
       reject(err);
     });
@@ -87,22 +93,26 @@ const runTemplate = async (source, examples) => {
       results[name].meta = meta;
     });
   });
-}
+};
 
-const postprocessOutput = async htmls =>
+const postprocessOutput = async (htmls) =>
   Object.entries(htmls).map(([key, item]) => {
     const dom = new JSDOM(item.html);
-    dom.window.document.querySelectorAll('pre code').forEach((block) => {
+    dom.window.document.querySelectorAll("pre code").forEach((block) => {
       hljs.highlightBlock(block);
     });
-    return [key, dom.serialize().replace(
-      "<!--replace-headers-->",
-      item.meta
-        .map(({ key, value }) => `<meta name="${key}" content="${value}">`)
-        .join("\n")
-    )]
+    return [
+      key,
+      dom
+        .serialize()
+        .replace(
+          "<!--replace-headers-->",
+          item.meta
+            .map(({ key, value }) => `<meta name="${key}" content="${value}">`)
+            .join("\n")
+        ),
+    ];
   });
-
 
 module.exports = async (
   examples,
@@ -111,38 +121,43 @@ module.exports = async (
   templateFile,
   assetDir
 ) => {
-  const source = await prepareTemplate(inputDir, outputDir, templateFile, assetDir);
+  log.heading("Building website");
+  const source = await prepareTemplate(
+    inputDir,
+    outputDir,
+    templateFile,
+    assetDir
+  );
   const htmls = await postprocessOutput(await runTemplate(source, examples));
   // write files
 
   await Promise.all(
     htmls.map(async ([key, item]) => {
-      const html = minify(
-        item,
-        {
-          html5: true,
-          minifyCSS: {
-            level: {
-              2: {
-                all: true
-              }
-            }
+      const html = minify(item, {
+        html5: true,
+        minifyCSS: {
+          level: {
+            2: {
+              all: true,
+            },
           },
-          removeRedundantAttributes: true,
-          sortAttributes: true
-        }
-      );
+        },
+        removeRedundantAttributes: true,
+        sortAttributes: true,
+      });
       let target;
       if (key === "index") {
-        target = path.join(outputDir, "index.html");
+        target = path.join(outputDir.absolute, "index.html");
       } else {
-        target = path.join(outputDir, key, "index.html");
-        await fs.mkdir(path.join(outputDir, key), { recursive: true });
+        target = path.join(outputDir.absolute, key, "index.html");
+        await fs.mkdir(path.join(outputDir.absolute, key), { recursive: true });
       }
       await fs.writeFile(target, html, "utf8");
-      console.log("Succesfully generated ", target);
+      log.generated(
+        key === "index"
+          ? path.join(outputDir.relative, "index.html")
+          : path.join(outputDir.relative, key, "index.html")
+      );
     })
   );
-
-
 };

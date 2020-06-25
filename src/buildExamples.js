@@ -1,12 +1,13 @@
 const elm = require("node-elm-compiler"),
   path = require("path"),
   fs = require("fs").promises,
-  minify = require("html-minifier").minify;
+  minify = require("html-minifier").minify,
+  log = require("./log");
 
 async function compileElm(input, output) {
   const src = await elm.compileToString(input, {
     output: output,
-    optimize: true
+    optimize: true,
   });
   return await fs.writeFile(
     output,
@@ -30,57 +31,69 @@ async function compileElm(input, output) {
             "A6",
             "A7",
             "A8",
-            "A9"
+            "A9",
           ],
           pure_getters: true,
           keep_fargs: false,
           unsafe_comps: true,
           unsafe: true,
-          passes: 2
-        }
-      }
+          passes: 2,
+        },
+      },
     })
   );
 }
 
 const buildExample = async (example, inputDir, outputDir) => {
-  await fs.mkdir(path.join(outputDir, example.basename), { recursive: true });
-  const target = path.join(outputDir, example.basename, "iframe.html");
+  await fs.mkdir(path.join(outputDir.absolute, example.basename), {
+    recursive: true,
+  });
+  const target = path.join(outputDir.relative, example.basename, "iframe.html");
+  const targetAbs = path.join(
+    outputDir.absolute,
+    example.basename,
+    "iframe.html"
+  );
 
-  await compileElm(example.filename, path.resolve(target));
-  console.log("Succesfully generated " + target);
+  await compileElm(
+    path.relative(inputDir.absolute, example.filename),
+    targetAbs
+  );
+
+  log.generated(target);
   await Promise.all(
-    [example.tags.requires || []].flat().map(async dep => {
+    [example.tags.requires || []].flat().map(async (dep) => {
       const targetDir = path.dirname(
-        path.join(outputDir, example.basename, dep)
+        path.join(outputDir.absolute, example.basename, dep)
       );
       await fs.mkdir(targetDir, { recursive: true });
       await fs.copyFile(
-        path.join(inputDir, dep),
-        path.join(outputDir, example.basename, dep)
+        path.join(inputDir.absolute, dep),
+        path.join(outputDir.absolute, example.basename, dep)
       );
-      console.log(
-        "Succesfully generated " + path.join(outputDir, example.basename, dep)
-      );
+      log.generated(path.join(outputDir.relative, example.basename, dep));
     })
   );
 };
 
 module.exports = async (examples, inputDir, outputDir) => {
+  log.heading("Compiling examples");
   if (examples.length === 0) return [];
   // We compile the first example before all the others, so we only download
   // dependencies once. When that is done, we can compile everything else
   // in parallel.
+  const oldcwd = process.cwd();
+
+  process.chdir(inputDir.absolute);
   const [head, ...tail] = examples;
-  // console.log("building head");
-  await buildExample(head, inputDir, outputDir);
-  // console.log("done with head");
-  await Promise.all(
-    tail.map(example => buildExample(example, inputDir, outputDir))
-  );
-  // for (let example of tail) {
-  //   console.log("building", example.basename);
-  //   await buildExample(example, inputDir, outputDir);
-  // }
+  try {
+    await buildExample(head, inputDir, outputDir);
+    await Promise.all(
+      tail.map((example) => buildExample(example, inputDir, outputDir))
+    );
+  } finally {
+    process.chdir(oldcwd);
+  }
+
   return examples;
 };
