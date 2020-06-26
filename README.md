@@ -65,7 +65,7 @@ npm i -g elm-example-publisher
 
 `elm-example-publisher --help` will show options that can be configured at runtime.
 
-You can most easily modify the output by changing the `/docs/Docs.elm` template file. We provide a default template for you (used if `/docs/Docs.elm` isn't found), but we recommend you copy this to your project and customize as you see fit. You can [find it here](src/templates).
+You can most easily modify the output by changing the `/docs/Docs.elm` template file. We provide a default template for you (used if `/docs/Docs.elm` isn't found), but we recommend you copy this to your project and customize as you see fit. You can [find it here](https://github.com/gampleman/elm-example-publisher/tree/master/src/templates).
 
 Finally, you can add `@tags` to your examples in the module comment. There are a few built in tags, but you also get access to the tags in your template. You can use that to implement categories for example.
 
@@ -77,16 +77,18 @@ This will cause the screenshot to wait the specifified number of seconds. Useful
 
 #### `@requires <relative file path>`
 
-Sometimes example depend on some asset being available - a texture, data file, etc. This attribute ensures that the build time server correctly serves this asset when screenshotting as well as copying the asset to the correct directory.
+Sometimes example depend on some asset being available - a texture, data file, etc. This attribute ensures that the build time server correctly serves this asset when screenshotting as well as copying the asset to the correct directory. It will also prefix this path with `--base-url` when uploading to Ellie.
 
-#### @screenshot <string>
+#### `@screenshot <string>`
 
 If the example is an app that can respond to fragment URLs you might want to take screenshots of every screen. You can repeat this tag and a screenshot will be created. For example
 
+```elm
 {-|
 @screenshot foo
 @screenshot bar
 -}
+```
 
 Will create:
 
