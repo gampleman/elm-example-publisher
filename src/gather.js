@@ -5,7 +5,7 @@ const util = require("util"),
   chalk = require("chalk");
 
 const findElligibleFiles = async (inputDir) => {
-  const files = await glob(inputDir.absolute + "/*.elm");
+  const files = await glob(inputDir + "/*.elm");
   const fileDetails = await Promise.all(
     files.map(async (file) => [file, await fs.readFile(file, "utf8")])
   );
@@ -52,7 +52,7 @@ const parseDocComment = (filename, source, width, height) => {
 };
 
 module.exports = async (inputDir, width, height) => {
-  console.log(chalk.green.bold("Gathering all elligble examples"));
+  // console.log(chalk.green.bold("Gathering all elligble examples"));
   const examples = await findElligibleFiles(inputDir);
   return examples.map(([name, source]) =>
     parseDocComment(name, source, width, height)
