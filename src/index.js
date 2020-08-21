@@ -22,7 +22,7 @@ module.exports = async (options) => {
     compile,
   } = processOptions(options);
   let examples = await gather(inputDir, width, height);
-  if (compile) await buildExamples(examples, inputDir, outputDir);
+  if (compile) await buildExamples(debug, examples, inputDir, outputDir);
   if (screenshots)
     await makeScreenshots(examples, outputDir, debug, width, height);
   if (ellie) {
