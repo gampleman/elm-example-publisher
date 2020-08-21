@@ -4,10 +4,11 @@ const elm = require("node-elm-compiler"),
   minify = require("html-minifier").minify,
   log = require("./log");
 
-async function compileElm(input, output) {
+async function compileElm(debug, input, output) {
   const src = await elm.compileToString(input, {
+    debug,
     output: output,
-    optimize: true,
+    optimize: !debug,
   });
   return await fs.writeFile(
     output,
@@ -44,7 +45,7 @@ async function compileElm(input, output) {
   );
 }
 
-const buildExample = async (example, inputDir, outputDir) => {
+const buildExample = async (debug, example, inputDir, outputDir) => {
   await fs.mkdir(path.join(outputDir.absolute, example.basename), {
     recursive: true,
   });
@@ -56,6 +57,7 @@ const buildExample = async (example, inputDir, outputDir) => {
   );
 
   await compileElm(
+    debug,
     path.relative(inputDir.absolute, example.filename),
     targetAbs
   );
@@ -76,7 +78,7 @@ const buildExample = async (example, inputDir, outputDir) => {
   );
 };
 
-module.exports = async (examples, inputDir, outputDir) => {
+module.exports = async (debug, examples, inputDir, outputDir) => {
   log.heading("Compiling examples");
   if (examples.length === 0) return [];
   // We compile the first example before all the others, so we only download
@@ -87,9 +89,9 @@ module.exports = async (examples, inputDir, outputDir) => {
   process.chdir(inputDir.absolute);
   const [head, ...tail] = examples;
   try {
-    await buildExample(head, inputDir, outputDir);
+    await buildExample(debug, head, inputDir, outputDir);
     await Promise.all(
-      tail.map((example) => buildExample(example, inputDir, outputDir))
+      tail.map((example) => buildExample(debug, example, inputDir, outputDir))
     );
   } finally {
     process.chdir(oldcwd);
