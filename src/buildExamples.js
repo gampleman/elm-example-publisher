@@ -4,14 +4,14 @@ const elm = require("node-elm-compiler"),
   minify = require("html-minifier").minify,
   log = require("./log");
 
-async function compileElm(input, output) {
+async function compileElm(input, output, disableMinification) {
   const src = await elm.compileToString(input, {
     output: output,
     optimize: true,
   });
   return await fs.writeFile(
     output,
-    minify(src, {
+    disableMinification ? src : minify(src, {
       minifyJS: {
         mangle: true,
         compress: {
@@ -57,7 +57,8 @@ const buildExample = async (example, inputDir, outputDir) => {
 
   await compileElm(
     path.relative(inputDir.absolute, example.filename),
-    targetAbs
+    targetAbs,
+    example.tags.minify && example.tags.minify === "false"
   );
 
   log.generated(target);
