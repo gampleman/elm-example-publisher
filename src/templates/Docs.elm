@@ -379,8 +379,8 @@ headerView currentExample =
                                 ]
                             ]
                             [ -- You may want to include some project links here:
-                              a [ css [ marginRight (px 20), linkStyle ], href ("https://package.elm-lang.org/packages/" ++ authorName ++ "/" ++ projectName ++ "/latest/") ] [ text "Docs" ]
-                            , a [ css [ marginRight (px 20), linkStyle ], href ("https://github.com/" ++ authorName ++ "/" ++ projectName) ] [ text "GitHub" ]
+                              a [ css [ marginRight (px 20), linkStyle, color (hex "#fff") ], href ("https://package.elm-lang.org/packages/" ++ authorName ++ "/" ++ projectName ++ "/latest/") ] [ text "Docs" ]
+                            , a [ css [ marginRight (px 20), linkStyle, color (hex "#fff") ], href ("https://github.com/" ++ authorName ++ "/" ++ projectName) ] [ text "GitHub" ]
                             ]
                         ]
                )
