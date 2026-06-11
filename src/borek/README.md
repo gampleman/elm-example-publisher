@@ -1,40 +1,36 @@
 # Borek
 
-Borek is an abstract build system. What do we mean by build system?
+Borek is an abstract incremental build system. You describe your build as a set
+of tasks; Borek tracks the dependencies between them and, on a rebuild, recomputes
+only the tasks whose inputs actually changed.
 
-```javascript
-const tasks = async (target, get) => {
-  console.log(`Executing ${target}`);
-  switch (target) {
-    // we want to build target foo
-    case "foo":
-      // here we declare a dependency on bar
-      // this dependency relationship will get automatically tracked
-      const bar = await get("bar");
-      // We return the result
-      return bar + 1;
-    case "bar":
-      return 2;
+The primary interface is a class. Subclass `Borek<Input>` and define `async`
+methods — each method is a task. Inside a task, calling `this.otherTask(...)`
+records a dependency and returns that task's built (cached) value; calling a task
+method on the instance from outside runs a build targeting it:
+
+```ts
+class Calc extends Borek<{ start: number }> {
+  async foo() {
+    // Awaiting another method records a dependency, automatically tracked.
+    return (await this.bar()) + 1;
   }
-};
-const build = buildSystem({ tasks, store: inMemoryStore });
+  async bar() {
+    // this.input(key) reads a value from the constructor argument (Volatile).
+    return await this.input("start");
+  }
+}
 
-await build("foo"); // => 3
-// Executing foo
-// Executing bar
-await build("foo"); // => 3
-// no logs - everything is cached
-store.invalidate("foo");
-await build("foo"); // => 3
-// Executing foo
-// bar isn't logged
-store.invalidate("bar");
-await build("foo"); // => 3
-// Executing bar
-// Executing foo
+const calc = new Calc({ start: 2 }, { store: inMemoryStore() });
+
+await calc.foo(); // => 3, runs foo + bar
+await calc.foo(); // => 3, fully cached, nothing re-runs
 ```
 
-Borek implements the `buildSystem` function above (and some other optional pieces to get going quicker).
+Under the hood this is driven by a lower-level functional core, `buildSystem`,
+which takes a `tasks` function of `(key, get) => value` (the class adapter turns
+each method into such a task). The `Volatile`, `File`, store, and watch helpers
+are the other pieces.
 
 In more concrete terms: Borek manages the execution of tasks in the following manner - It will start by computing the first key. When it encounters a `await get(dependency)` call, it will suspend execution of the initial task and check wheather it has that key in its cache. If not, it will then execute the task for that key and so on.
 
