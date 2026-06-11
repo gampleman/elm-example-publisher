@@ -26,14 +26,20 @@ These programs should render some output that should all fit into some dimension
 
 #### 3. Taking screenshots
 
-For each program a Chromium instance will navigate to it and take a screenshot of the output. These screenshots are then made into a series of responsive images - the full size screenshot is the 3x version, and a smaller 2x and 1x version is made. These are then written to disk.
+For each program a headless Chrome instance (driven by [Puppeteer](https://pptr.dev)) will navigate to it and take a screenshot of the output. These screenshots are then made into a series of responsive images - the full size screenshot is the 3x version, and a smaller 2x and 1x version is made. These are then written to disk.
+
+Puppeteer downloads its own up-to-date Chrome on install, so no system browser is required. Screenshots are taken with `--no-sandbox` so that they work in CI environments that run as root. If you'd rather use a browser already installed on the machine, set the `PUPPETEER_EXECUTABLE_PATH` environment variable to point at it:
+
+```sh
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable elm-example-publisher
+```
 
 **Customized with:**
 
 - `--output-dir <dir>` tells it where to write the output files
 - `--no-screenshots` will skip this step. Not all example websites are visual and need screenshots.
 - `--width <pixels>` and `--height <pixels>` set the dimensions of the screenshots (defaults to 990x504.)
-- `--debug` runs Chromium visibly so you can see what is going on
+- `--debug` runs Chrome visibly so you can see what is going on
 
 #### 4. Publishing Ellies
 
