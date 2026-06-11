@@ -1,8 +1,10 @@
-const StaticServer = require("static-server"),
-  path = require("path"),
-  puppeteer = require("puppeteer"),
-  sharp = require("sharp"),
-  log = require("./log");
+import path from "node:path";
+import http from "node:http";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import puppeteer from "puppeteer";
+import sharp from "sharp";
+import * as log from "./log.js";
 
 // Launch flags that keep Chrome happy in CI: it commonly runs as root there,
 // where Chrome refuses to start without --no-sandbox. Modern puppeteer
@@ -28,7 +30,7 @@ async function snapPicture(
   delay,
   width,
   height,
-  debug
+  debug,
 ) {
   const dir = path.join(outputDir.absolute, exampleDir);
   const bigPicture = path.join(dir, name + "@3x.png");
@@ -72,14 +74,17 @@ async function snapPicture(
         const resized = resizer.clone().resize(w * factor, h * factor);
 
         return [
-          resized.clone().webp().toFile(path.join(dir, endName + ".webp")),
+          resized
+            .clone()
+            .webp()
+            .toFile(path.join(dir, endName + ".webp")),
 
           resized.toFile(fName).then(function () {
             log.generated(
-              path.join(outputDir.relative, exampleDir, endName + ".png")
+              path.join(outputDir.relative, exampleDir, endName + ".png"),
             );
             log.generated(
-              path.join(outputDir.relative, exampleDir, endName + ".webp")
+              path.join(outputDir.relative, exampleDir, endName + ".webp"),
             );
           }),
         ];
@@ -91,27 +96,81 @@ async function snapPicture(
           .toFile(path.join(dir, name + "@3x.webp"))
           .then(() => {
             log.generated(
-              path.join(outputDir.relative, exampleDir, name + "@3x.webp")
+              path.join(outputDir.relative, exampleDir, name + "@3x.webp"),
             );
-          })
-      )
+          }),
+      ),
   );
 }
 
+const CONTENT_TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript",
+  ".mjs": "text/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".csv": "text/csv",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+};
+
+// A minimal static file server, just enough to serve the compiled examples to
+// the headless browser while screenshots are taken.
 const runServer = (rootPath, cb) => {
-  const port = 4985;
-  const server = new StaticServer({ rootPath, port });
+  const server = http.createServer(async (req, res) => {
+    try {
+      const urlPath = decodeURIComponent(
+        new URL(req.url, "http://localhost").pathname,
+      );
+      let filePath = path.join(rootPath, urlPath);
+      // Prevent path traversal outside the served root.
+      if (!filePath.startsWith(rootPath)) {
+        res.statusCode = 403;
+        return res.end("Forbidden");
+      }
+      let stats = await stat(filePath).catch(() => null);
+      if (stats && stats.isDirectory()) {
+        filePath = path.join(filePath, "index.html");
+        stats = await stat(filePath).catch(() => null);
+      }
+      if (!stats) {
+        res.statusCode = 404;
+        return res.end("Not found");
+      }
+      res.setHeader(
+        "Content-Type",
+        CONTENT_TYPES[path.extname(filePath).toLowerCase()] ||
+          "application/octet-stream",
+      );
+      createReadStream(filePath).pipe(res);
+    } catch (error) {
+      res.statusCode = 500;
+      res.end(String(error));
+    }
+  });
+
   return new Promise((resolve, reject) => {
-    server.start(
-      cb(`http://localhost:${port}/`).then((result) => {
-        server.stop();
-        resolve(result);
-      }, reject)
-    );
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      cb(`http://127.0.0.1:${port}/`).then(
+        (result) => {
+          server.close();
+          resolve(result);
+        },
+        (error) => {
+          server.close();
+          reject(error);
+        },
+      );
+    });
   });
 };
 
-module.exports = (examples, outputDir, debug) => {
+export default (examples, outputDir, debug) => {
   log.heading("Taking screenshots");
   return runServer(outputDir.absolute, async (baseUrl) => {
     const browser = await launchBrowser(debug);
@@ -132,10 +191,10 @@ module.exports = (examples, outputDir, debug) => {
               example.tags.delay || 0,
               example.width,
               example.height,
-              debug
+              debug,
             );
           });
-        })
+        }),
       );
     } finally {
       await browser.close();

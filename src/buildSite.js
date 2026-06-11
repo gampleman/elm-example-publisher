@@ -1,16 +1,19 @@
-const { JSDOM } = require("jsdom"),
-  { compileToString } = require("node-elm-compiler"),
-  path = require("path"),
-  os = require("os"),
-  fs = require("fs").promises,
-  minify = require("html-minifier").minify,
-  copyDir = require("copy-dir").sync,
-  hljs = require("highlight.js"),
-  log = require("./log");
+import { JSDOM } from "jsdom";
+import elm from "node-elm-compiler";
+import path from "node:path";
+import os from "node:os";
+import { promises as fs } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { minify } from "html-minifier-terser";
+import hljs from "highlight.js";
+import * as log from "./log.js";
+
+const { compileToString } = elm;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const prepareTemplate = async (inputDir, outputDir, templateFile, assetDir) => {
   const workDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "elm-example-publisher-")
+    path.join(os.tmpdir(), "elm-example-publisher-"),
   );
   const curDir = path.dirname(templateFile.absolute);
 
@@ -22,11 +25,11 @@ const prepareTemplate = async (inputDir, outputDir, templateFile, assetDir) => {
   await fs.writeFile(
     path.join(workDir, "elm.json"),
     JSON.stringify(elmJson),
-    "utf8"
+    "utf8",
   );
   await fs.copyFile(
     path.join(__dirname, "ExamplePublisher.elm"),
-    path.join(workDir, "ExamplePublisher.elm")
+    path.join(workDir, "ExamplePublisher.elm"),
   );
 
   const oldcwd = process.cwd();
@@ -36,12 +39,13 @@ const prepareTemplate = async (inputDir, outputDir, templateFile, assetDir) => {
   });
   process.chdir(oldcwd);
   log.generated("Compiled template");
-  copyDir(
+  await fs.cp(
     assetDir.absolute,
-    path.join(outputDir.absolute, path.basename(assetDir.absolute))
+    path.join(outputDir.absolute, path.basename(assetDir.absolute)),
+    { recursive: true },
   );
   log.generated(
-    path.join(outputDir.relative, path.basename(assetDir.absolute))
+    path.join(outputDir.relative, path.basename(assetDir.absolute)),
   );
   return source;
 };
@@ -49,7 +53,7 @@ const prepareTemplate = async (inputDir, outputDir, templateFile, assetDir) => {
 const runTemplate = async (source, examples) => {
   const dom = new JSDOM(
     `<!DOCTYPE html><html><head><!--replace-headers--></head><body><div></div></body></html>`,
-    { pretendToBeVisual: true, runScripts: "outside-only" }
+    { pretendToBeVisual: true, runScripts: "outside-only" },
   );
 
   dom.window.eval(source);
@@ -62,7 +66,7 @@ const runTemplate = async (source, examples) => {
         res[example.basename] = { html: "", meta: [], example };
         return res;
       },
-      { index: { html: "", meta: [] } }
+      { index: { html: "", meta: [] } },
     );
     const observer = new dom.window.MutationObserver((ml) => {
       results[expecting].html = dom.serialize();
@@ -99,7 +103,7 @@ const postprocessOutput = async (htmls) =>
   Object.entries(htmls).map(([key, item]) => {
     const dom = new JSDOM(item.html);
     dom.window.document.querySelectorAll("pre code").forEach((block) => {
-      hljs.highlightBlock(block);
+      hljs.highlightElement(block);
     });
     return [
       key,
@@ -109,31 +113,31 @@ const postprocessOutput = async (htmls) =>
           "<!--replace-headers-->",
           item.meta
             .map(({ key, value }) => `<meta name="${key}" content="${value}">`)
-            .join("\n")
+            .join("\n"),
         ),
     ];
   });
 
-module.exports = async (
+export default async (
   examples,
   inputDir,
   outputDir,
   templateFile,
-  assetDir
+  assetDir,
 ) => {
   log.heading("Building website");
   const source = await prepareTemplate(
     inputDir,
     outputDir,
     templateFile,
-    assetDir
+    assetDir,
   );
   const htmls = await postprocessOutput(await runTemplate(source, examples));
   // write files
 
   await Promise.all(
     htmls.map(async ([key, item]) => {
-      const html = minify(item, {
+      const html = await minify(item, {
         html5: true,
         minifyCSS: {
           level: {
@@ -156,8 +160,8 @@ module.exports = async (
       log.generated(
         key === "index"
           ? path.join(outputDir.relative, "index.html")
-          : path.join(outputDir.relative, key, "index.html")
+          : path.join(outputDir.relative, key, "index.html"),
       );
-    })
+    }),
   );
 };

@@ -1,47 +1,47 @@
-const elm = require("node-elm-compiler"),
-  path = require("path"),
-  fs = require("fs").promises,
-  minify = require("html-minifier").minify,
-  log = require("./log");
+import elm from "node-elm-compiler";
+import path from "node:path";
+import { promises as fs } from "node:fs";
+import { minify } from "html-minifier-terser";
+import * as log from "./log.js";
 
 async function compileElm(input, output, disableMinification) {
   const src = await elm.compileToString(input, {
     output: output,
     optimize: true,
   });
-  return await fs.writeFile(
-    output,
-    disableMinification ? src : minify(src, {
-      minifyJS: {
-        mangle: true,
-        compress: {
-          pure_funcs: [
-            "F2",
-            "F3",
-            "F4",
-            "F5",
-            "F6",
-            "F7",
-            "F8",
-            "F9",
-            "A2",
-            "A3",
-            "A4",
-            "A5",
-            "A6",
-            "A7",
-            "A8",
-            "A9",
-          ],
-          pure_getters: true,
-          keep_fargs: false,
-          unsafe_comps: true,
-          unsafe: true,
-          passes: 2,
+  const result = disableMinification
+    ? src
+    : await minify(src, {
+        minifyJS: {
+          mangle: true,
+          compress: {
+            pure_funcs: [
+              "F2",
+              "F3",
+              "F4",
+              "F5",
+              "F6",
+              "F7",
+              "F8",
+              "F9",
+              "A2",
+              "A3",
+              "A4",
+              "A5",
+              "A6",
+              "A7",
+              "A8",
+              "A9",
+            ],
+            pure_getters: true,
+            keep_fargs: false,
+            unsafe_comps: true,
+            unsafe: true,
+            passes: 2,
+          },
         },
-      },
-    })
-  );
+      });
+  return await fs.writeFile(output, result);
 }
 
 const buildExample = async (example, inputDir, outputDir) => {
@@ -52,32 +52,32 @@ const buildExample = async (example, inputDir, outputDir) => {
   const targetAbs = path.join(
     outputDir.absolute,
     example.basename,
-    "iframe.html"
+    "iframe.html",
   );
 
   await compileElm(
     path.relative(inputDir.absolute, example.filename),
     targetAbs,
-    example.tags.minify && example.tags.minify === "false"
+    example.tags.minify && example.tags.minify === "false",
   );
 
   log.generated(target);
   await Promise.all(
     [example.tags.requires || []].flat().map(async (dep) => {
       const targetDir = path.dirname(
-        path.join(outputDir.absolute, example.basename, dep)
+        path.join(outputDir.absolute, example.basename, dep),
       );
       await fs.mkdir(targetDir, { recursive: true });
       await fs.copyFile(
         path.join(inputDir.absolute, dep),
-        path.join(outputDir.absolute, example.basename, dep)
+        path.join(outputDir.absolute, example.basename, dep),
       );
       log.generated(path.join(outputDir.relative, example.basename, dep));
-    })
+    }),
   );
 };
 
-module.exports = async (examples, inputDir, outputDir) => {
+export default async (examples, inputDir, outputDir) => {
   log.heading("Compiling examples");
   if (examples.length === 0) return [];
   // We compile the first example before all the others, so we only download
@@ -90,7 +90,7 @@ module.exports = async (examples, inputDir, outputDir) => {
   try {
     await buildExample(head, inputDir, outputDir);
     await Promise.all(
-      tail.map((example) => buildExample(example, inputDir, outputDir))
+      tail.map((example) => buildExample(example, inputDir, outputDir)),
     );
   } finally {
     process.chdir(oldcwd);

@@ -1,8 +1,7 @@
-const util = require("util"),
-  glob = util.promisify(require("glob")),
-  path = require("path"),
-  fs = require("fs").promises,
-  chalk = require("chalk");
+import { glob } from "glob";
+import path from "node:path";
+import { promises as fs } from "node:fs";
+import chalk from "chalk";
 
 // An example is eligible if it is a module that exposes `main` (either
 // explicitly, or via `(..)`). The exposing list may span multiple lines, as
@@ -12,7 +11,7 @@ const util = require("util"),
 const exposingRegexp =
   /^(?:port\s+|effect\s+)?module\s+[\w.]+\s+exposing\s*\(([\s\S]*?)\)/m;
 
-const exposesMain = (source) => {
+export const exposesMain = (source) => {
   const match = source.match(exposingRegexp);
   if (!match) return false;
   const exposed = match[1];
@@ -20,9 +19,11 @@ const exposesMain = (source) => {
 };
 
 const findElligibleFiles = async (inputDir) => {
-  const files = await glob(inputDir.absolute + "/*.elm");
+  const files = await glob(inputDir.absolute + "/*.elm", {
+    windowsPathsNoEscape: true,
+  });
   const fileDetails = await Promise.all(
-    files.map(async (file) => [file, await fs.readFile(file, "utf8")])
+    files.map(async (file) => [file, await fs.readFile(file, "utf8")]),
   );
   return fileDetails.filter(([_, source]) => exposesMain(source));
 };
@@ -64,10 +65,10 @@ const parseDocComment = (filename, source, width, height) => {
   };
 };
 
-module.exports = async (inputDir, width, height) => {
+export default async (inputDir, width, height) => {
   console.log(chalk.green.bold("Gathering all elligble examples"));
   const examples = await findElligibleFiles(inputDir);
   return examples.map(([name, source]) =>
-    parseDocComment(name, source, width, height)
+    parseDocComment(name, source, width, height),
   );
 };

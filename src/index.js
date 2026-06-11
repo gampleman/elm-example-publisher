@@ -1,13 +1,12 @@
-const processOptions = require("./options"),
-  gather = require("./gather"),
-  buildExamples = require("./buildExamples"),
-  makeScreenshots = require("./screenshots"),
-  buildSite = require("./buildSite"),
-  // generateServiceWorker = require("./generateServiceWorker"),
-  publishEllies = require("./publishEllies"),
-  chalk = require("chalk");
+import processOptions from "./options.js";
+import gather from "./gather.js";
+import buildExamples from "./buildExamples.js";
+import makeScreenshots from "./screenshots.js";
+import buildSite from "./buildSite.js";
+import publishEllies from "./publishEllies.js";
+import chalk from "chalk";
 
-module.exports = async (options) => {
+export default async (options) => {
   const start = new Date();
   const {
     inputDir,
@@ -29,10 +28,9 @@ module.exports = async (options) => {
     examples = await publishEllies(examples, inputDir, ellie);
   }
   await buildSite(examples, inputDir, outputDir, templateFile, assetDir);
-  // await generateServiceWorker(outputDir);
   console.log(
     chalk.bold.green(
-      `Done. Completed in ${Math.ceil((new Date() - start) / 1000)} seconds`
-    )
+      `Done. Completed in ${Math.ceil((new Date() - start) / 1000)} seconds`,
+    ),
   );
 };
