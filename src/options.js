@@ -1,6 +1,9 @@
-const chalk = require("chalk"),
-  path = require("path"),
-  fs = require("fs");
+import chalk from "chalk";
+import path from "node:path";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const Path = (relative, absolute) => {
   absolute = absolute || path.resolve(relative);
@@ -10,7 +13,7 @@ const Path = (relative, absolute) => {
     join(...segments) {
       return Path(
         path.join(relative, ...segments),
-        path.join(absolute, ...segments)
+        path.join(absolute, ...segments),
       );
     },
     toString() {
@@ -24,8 +27,8 @@ const Path = (relative, absolute) => {
       if (!fs.existsSync(absolute)) {
         console.log(
           chalk.yellow(
-            `The path ${relative} doesn't exist. Falling back to ${other}.`
-          )
+            `The path ${relative} doesn't exist. Falling back to ${other}.`,
+          ),
         );
         return Path(other, other);
       }
@@ -34,7 +37,7 @@ const Path = (relative, absolute) => {
   };
 };
 
-module.exports = ({
+export default ({
   inputDir = "./examples",
   outputDir = "./build",
   width = 990,
@@ -60,10 +63,10 @@ module.exports = ({
     width,
     height,
     templateFile: Path(templateFile).ifNotExists(
-      path.resolve(__dirname, "templates", "Docs.elm")
+      path.resolve(__dirname, "templates", "Docs.elm"),
     ),
     assetDir: Path(assetDir).ifNotExists(
-      path.resolve(__dirname, "templates", "assets")
+      path.resolve(__dirname, "templates", "assets"),
     ),
     debug,
     ellie,
@@ -72,7 +75,7 @@ module.exports = ({
   };
   if (debug) {
     console.log(
-      chalk.yellow("Resolved options: ") + JSON.stringify(options, null, 2)
+      chalk.yellow("Resolved options: ") + JSON.stringify(options, null, 2),
     );
   }
   return options;

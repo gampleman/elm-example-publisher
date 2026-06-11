@@ -1,10 +1,9 @@
-const chalk = require("chalk"),
-  path = require("path");
-module.exports = {
-  generated(file) {
-    console.log("  " + chalk.green("✓") + " " + file);
-  },
-  heading(str) {
-    console.log(chalk.green.bold(str));
-  },
-};
+import chalk from "chalk";
+
+export function generated(file) {
+  console.log("  " + chalk.green("✓") + " " + file);
+}
+
+export function heading(str) {
+  console.log(chalk.green.bold(str));
+}
