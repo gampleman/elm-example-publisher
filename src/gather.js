@@ -4,14 +4,27 @@ const util = require("util"),
   fs = require("fs").promises,
   chalk = require("chalk");
 
+// An example is eligible if it is a module that exposes `main` (either
+// explicitly, or via `(..)`). The exposing list may span multiple lines, as
+// produced by elm-format, and module names may be dotted (e.g. Pages.Home), so
+// we capture the whole exposing list and inspect it rather than trying to match
+// `main` on the module line directly.
+const exposingRegexp =
+  /^(?:port\s+|effect\s+)?module\s+[\w.]+\s+exposing\s*\(([\s\S]*?)\)/m;
+
+const exposesMain = (source) => {
+  const match = source.match(exposingRegexp);
+  if (!match) return false;
+  const exposed = match[1];
+  return exposed.includes("..") || /\bmain\b/.test(exposed);
+};
+
 const findElligibleFiles = async (inputDir) => {
   const files = await glob(inputDir.absolute + "/*.elm");
   const fileDetails = await Promise.all(
     files.map(async (file) => [file, await fs.readFile(file, "utf8")])
   );
-  return fileDetails.filter(([_, source]) =>
-    source.match(/module \w*( exposing \((?:.*\bmain\b.*|\.\.)\))?\w*\n/i)
-  );
+  return fileDetails.filter(([_, source]) => exposesMain(source));
 };
 
 const firstCommentRegexp = /\{\-\|((?:.|\n)*?)\s*\-\}\n+/m;
