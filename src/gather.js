@@ -1,17 +1,31 @@
-const util = require("util"),
-  glob = util.promisify(require("glob")),
-  path = require("path"),
-  fs = require("fs").promises,
-  chalk = require("chalk");
+import { glob } from "glob";
+import path from "node:path";
+import { promises as fs } from "node:fs";
+import chalk from "chalk";
+
+// An example is eligible if it is a module that exposes `main` (either
+// explicitly, or via `(..)`). The exposing list may span multiple lines, as
+// produced by elm-format, and module names may be dotted (e.g. Pages.Home), so
+// we capture the whole exposing list and inspect it rather than trying to match
+// `main` on the module line directly.
+const exposingRegexp =
+  /^(?:port\s+|effect\s+)?module\s+[\w.]+\s+exposing\s*\(([\s\S]*?)\)/m;
+
+export const exposesMain = (source) => {
+  const match = source.match(exposingRegexp);
+  if (!match) return false;
+  const exposed = match[1];
+  return exposed.includes("..") || /\bmain\b/.test(exposed);
+};
 
 const findElligibleFiles = async (inputDir) => {
-  const files = await glob(inputDir.absolute + "/*.elm");
+  const files = await glob(inputDir.absolute + "/*.elm", {
+    windowsPathsNoEscape: true,
+  });
   const fileDetails = await Promise.all(
-    files.map(async (file) => [file, await fs.readFile(file, "utf8")])
+    files.map(async (file) => [file, await fs.readFile(file, "utf8")]),
   );
-  return fileDetails.filter(([_, source]) =>
-    source.match(/module \w*( exposing \((?:.*\bmain\b.*|\.\.)\))?\w*\n/i)
-  );
+  return fileDetails.filter(([_, source]) => exposesMain(source));
 };
 
 const firstCommentRegexp = /\{\-\|((?:.|\n)*?)\s*\-\}\n+/m;
@@ -51,10 +65,10 @@ const parseDocComment = (filename, source, width, height) => {
   };
 };
 
-module.exports = async (inputDir, width, height) => {
+export default async (inputDir, width, height) => {
   console.log(chalk.green.bold("Gathering all elligble examples"));
   const examples = await findElligibleFiles(inputDir);
   return examples.map(([name, source]) =>
-    parseDocComment(name, source, width, height)
+    parseDocComment(name, source, width, height),
   );
 };

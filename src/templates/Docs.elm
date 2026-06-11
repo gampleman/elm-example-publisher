@@ -279,7 +279,7 @@ headerView currentExample =
                     [ fontWeight normal
                     , margin zero
                     , marginLeft (px 20)
-                    , lineHeight zero
+                    , lineHeight (num 0)
                     ]
                 ]
                 [ a
@@ -353,7 +353,7 @@ headerView currentExample =
                                     [ fontWeight normal
                                     , margin zero
                                     , marginLeft (px 10)
-                                    , lineHeight zero
+                                    , lineHeight (num 0)
                                     , fontSize (px 24)
                                     , textOverflow ellipsis
                                     ]

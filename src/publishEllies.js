@@ -1,8 +1,5 @@
-const fetch = require("node-fetch"),
-  gather = require("./gather"),
-  fs = require("fs").promises,
-  path = require("path"),
-  log = require("./log");
+import { promises as fs } from "node:fs";
+import * as log from "./log.js";
 
 const authenticate = async () => {
   const request = await fetch("https://ellie-app.com/api", {
@@ -40,7 +37,7 @@ const saveEllie = async (token, ellie) => {
                     ([name, version]) => `{
                     name: "${name}",
                     version: "${version}"
-                }`
+                }`,
                   )
                   .join(",\n")}
             ]
@@ -52,7 +49,7 @@ const saveEllie = async (token, ellie) => {
   return `https://ellie-app.com/${response.data.revision.id}`;
 };
 
-module.exports = async (examples, inputDir, opts) => {
+export default async (examples, inputDir, opts) => {
   log.heading("Publishing Ellies");
   const token = await authenticate();
   log.generated("Authenticated with Ellie API");
@@ -72,12 +69,12 @@ module.exports = async (examples, inputDir, opts) => {
           ).forEach((req) => {
             source = source.replace(
               `"${req}"`,
-              `"${opts.baseUrl}/${example.basename}/${req}"`
+              `"${opts.baseUrl}/${example.basename}/${req}"`,
             );
           });
         } else {
           console.error(
-            `Couldn't upload Ellie for ${example.basename}, since it uses a @requires tag, but no --base-url was specified. This would cause the example not to function properly, so we are skipping uploading this example.`
+            `Couldn't upload Ellie for ${example.basename}, since it uses a @requires tag, but no --base-url was specified. This would cause the example not to function properly, so we are skipping uploading this example.`,
           );
           return example;
         }
@@ -110,7 +107,7 @@ module.exports = async (examples, inputDir, opts) => {
       const ellieLink = await saveEllie(token, ellie);
       log.generated(`${example.basename}: ${ellieLink}`);
       return { ...example, tags: { ...example.tags, ellieLink } };
-    })
+    }),
   );
   return newExamples;
 };

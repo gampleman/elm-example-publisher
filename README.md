@@ -63,6 +63,8 @@ Then, the script will load a template Elm program (by default this program resid
 
 ## Installation
 
+Requires Node.js 22 or later.
+
 ```
 npm i -g elm-example-publisher
 ```
