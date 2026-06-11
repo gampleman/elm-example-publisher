@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { exposesMain } from "../src/gather.js";
+import { exposesMain } from "./gather.js";
 
 // Regression tests for example detection (issue #2): examples that expose
 // `main` should be eligible regardless of how the exposing list is formatted.

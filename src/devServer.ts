@@ -3,8 +3,10 @@ import path from "node:path";
 import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import * as log from "./log.js";
+import type { WatchEmitter } from "./borek/index.js";
+import type { Options } from "./types.js";
 
-const CONTENT_TYPES = {
+const CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript",
   ".mjs": "text/javascript",
@@ -30,16 +32,25 @@ const LIVE_RELOAD_SNIPPET = `
   })();
 </script>`;
 
+type WatchFn = (
+  options: Options,
+  onBuildComplete?: () => void,
+) => Promise<WatchEmitter>;
+
 // Starts a dev server that serves `outputDir` with live reload, and drives an
 // incremental watch build. Each successful rebuild pushes a reload to every
-// connected browser. Resolves once the server is listening.
-export const startDevServer = async (options, watch) => {
+// connected browser. Resolves once the server is listening and the first build
+// has completed.
+export const startDevServer = async (
+  options: Options,
+  watch: WatchFn,
+): Promise<{ server: http.Server; emitter: WatchEmitter }> => {
   const { outputDir, port } = options;
-  const clients = new Set();
+  const clients = new Set<http.ServerResponse>();
 
   const server = http.createServer(async (req, res) => {
     const urlPath = decodeURIComponent(
-      new URL(req.url, "http://localhost").pathname,
+      new URL(req.url ?? "/", "http://localhost").pathname,
     );
 
     if (urlPath === "/__livereload") {
@@ -72,7 +83,7 @@ export const startDevServer = async (options, watch) => {
       const ext = path.extname(filePath).toLowerCase();
       res.setHeader(
         "Content-Type",
-        CONTENT_TYPES[ext] || "application/octet-stream",
+        CONTENT_TYPES[ext] ?? "application/octet-stream",
       );
       // Inject the live-reload client into HTML responses.
       if (ext === ".html") {
@@ -88,8 +99,8 @@ export const startDevServer = async (options, watch) => {
     }
   });
 
-  await new Promise((resolve, reject) => {
-    server.once("error", (err) => {
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "EADDRINUSE") {
         reject(
           new Error(`Port ${port} is already in use. Pass a different --port.`),
@@ -117,10 +128,10 @@ export const startDevServer = async (options, watch) => {
     }
   });
 
-  const shutdown = async () => {
+  const shutdown = () => {
     for (const client of clients) client.end();
     server.close();
-    await emitter.close();
+    emitter.close();
     process.exit(0);
   };
   process.on("SIGINT", shutdown);

@@ -2,10 +2,10 @@ import path from "node:path";
 import http from "node:http";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import puppeteer from "puppeteer";
+import puppeteer, { type Browser } from "puppeteer";
 import sharp from "sharp";
 
-const CONTENT_TYPES = {
+const CONTENT_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript",
   ".mjs": "text/javascript",
@@ -20,14 +20,15 @@ const CONTENT_TYPES = {
   ".gif": "image/gif",
 };
 
+export type RunningServer = { server: http.Server; baseUrl: string };
+
 // A minimal static file server for serving compiled examples to the browser.
-// Returns the running server plus its base URL; call `server.close()` to stop.
-export const startServer = (rootPath) =>
+export const startServer = (rootPath: string): Promise<RunningServer> =>
   new Promise((resolve) => {
     const server = http.createServer(async (req, res) => {
       try {
         const urlPath = decodeURIComponent(
-          new URL(req.url, "http://localhost").pathname,
+          new URL(req.url ?? "/", "http://localhost").pathname,
         );
         let filePath = path.join(rootPath, urlPath);
         if (!filePath.startsWith(rootPath)) {
@@ -45,7 +46,7 @@ export const startServer = (rootPath) =>
         }
         res.setHeader(
           "Content-Type",
-          CONTENT_TYPES[path.extname(filePath).toLowerCase()] ||
+          CONTENT_TYPES[path.extname(filePath).toLowerCase()] ??
             "application/octet-stream",
         );
         createReadStream(filePath).pipe(res);
@@ -55,7 +56,8 @@ export const startServer = (rootPath) =>
       }
     });
     server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
       resolve({ server, baseUrl: `http://127.0.0.1:${port}/` });
     });
   });
@@ -63,26 +65,28 @@ export const startServer = (rootPath) =>
 // Launch flags that keep Chrome happy in CI (commonly runs as root, where Chrome
 // refuses to start without --no-sandbox). Puppeteer downloads its own Chrome;
 // PUPPETEER_EXECUTABLE_PATH can override it.
-export const launchBrowser = (debug) =>
+export const launchBrowser = (debug: boolean): Promise<Browser> =>
   puppeteer.launch({
     headless: !debug,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
     ...(debug ? { slowMo: 100 } : {}),
   });
 
+type ImageFormat = "png" | "webp";
+
 // Takes the full-resolution (3x) screenshot of a single page and writes it to
 // <outputDir>/<exampleDir>/<name>@3x.png. Returns the file path.
 export async function snapPicture(
-  browser,
-  outputDir,
-  exampleDir,
-  name,
-  url,
-  delay,
-  width,
-  height,
-  debug,
-) {
+  browser: Browser,
+  outputDir: string,
+  exampleDir: string,
+  name: string,
+  url: string,
+  delay: number,
+  width: number,
+  height: number,
+  debug: boolean,
+): Promise<string> {
   const bigPicture = path.join(outputDir, exampleDir, name + "@3x.png");
   const page = await browser.newPage();
 
@@ -101,7 +105,7 @@ export async function snapPicture(
     if (delay) {
       await new Promise((resolve) => setTimeout(resolve, delay * 1000));
     }
-    await page.screenshot({ path: bigPicture });
+    await page.screenshot({ path: bigPicture as `${string}.png` });
   } finally {
     await page.close();
   }
@@ -110,12 +114,17 @@ export async function snapPicture(
 
 // Produces one resized derivative of a screenshot at the given scale (1/2/3)
 // and format (png/webp). The 3x file is the source produced by snapPicture.
-export async function resize(baseName, sourcePath, w, h, scale, format) {
+export async function resize(
+  baseName: string,
+  sourcePath: string,
+  w: number,
+  h: number,
+  scale: number,
+  format: ImageFormat,
+): Promise<string> {
   const fileName =
     baseName + (scale > 1 ? "@" + scale + "x" : "") + "." + format;
-  await sharp(sourcePath)
-    .resize(w * scale, h * scale)
-    [format]()
-    .toFile(fileName);
+  const resized = sharp(sourcePath).resize(w * scale, h * scale);
+  await (format === "webp" ? resized.webp() : resized.png()).toFile(fileName);
   return fileName;
 }

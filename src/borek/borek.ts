@@ -92,7 +92,13 @@ const makeTasks =
     if (typeof method !== "function") {
       throw new Error(`Unknown task: ${key.method}`);
     }
-    const recording = Object.create(Object.getPrototypeOf(instance)) as object;
+    // Clone the instance (prototype + own fields, e.g. subclass properties set
+    // in the constructor) with the recorder installed, so nested this.x() calls
+    // record dependencies instead of starting new builds.
+    const recording = Object.create(
+      Object.getPrototypeOf(instance),
+      Object.getOwnPropertyDescriptors(instance),
+    ) as object;
     internals.set(recording, { ...internals.get(instance)!, record: get });
     const result = await (
       method as (...a: unknown[]) => Promise<unknown>

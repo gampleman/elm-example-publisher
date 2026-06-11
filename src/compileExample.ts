@@ -2,10 +2,16 @@ import elm from "node-elm-compiler";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { minify } from "html-minifier-terser";
+import type { Example } from "./types.js";
 
 const { compileToString } = elm;
 
-async function compileElm(input, output, cwd, disableMinification) {
+async function compileElm(
+  input: string,
+  output: string,
+  cwd: string,
+  disableMinification: boolean,
+): Promise<void> {
   const src = await compileToString([input], {
     output,
     optimize: true,
@@ -47,7 +53,11 @@ async function compileElm(input, output, cwd, disableMinification) {
 }
 
 // Compiles a single example's Elm program to a self-contained iframe.html.
-export default async (example, inputDir, outputDir) => {
+export default async (
+  example: Example,
+  inputDir: string,
+  outputDir: string,
+): Promise<string> => {
   await fs.mkdir(path.join(outputDir, example.basename), { recursive: true });
   const target = path.join(outputDir, example.basename, "iframe.html");
   await compileElm(

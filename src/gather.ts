@@ -2,6 +2,7 @@ import { glob } from "glob";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import chalk from "chalk";
+import type { Example, Tags } from "./types.js";
 
 // An example is eligible if it is a module that exposes `main` (either
 // explicitly, or via `(..)`). The exposing list may span multiple lines, as
@@ -11,42 +12,52 @@ import chalk from "chalk";
 const exposingRegexp =
   /^(?:port\s+|effect\s+)?module\s+[\w.]+\s+exposing\s*\(([\s\S]*?)\)/m;
 
-export const exposesMain = (source) => {
+export const exposesMain = (source: string): boolean => {
   const match = source.match(exposingRegexp);
   if (!match) return false;
   const exposed = match[1];
   return exposed.includes("..") || /\bmain\b/.test(exposed);
 };
 
-const findElligibleFiles = async (inputDir) => {
+const findElligibleFiles = async (
+  inputDir: string,
+): Promise<[string, string][]> => {
   const files = await glob(inputDir + "/*.elm", {
     windowsPathsNoEscape: true,
   });
   const fileDetails = await Promise.all(
-    files.map(async (file) => [file, await fs.readFile(file, "utf8")]),
+    files.map(
+      async (file): Promise<[string, string]> => [
+        file,
+        await fs.readFile(file, "utf8"),
+      ],
+    ),
   );
-  return fileDetails.filter(([_, source]) => exposesMain(source));
+  return fileDetails.filter(([, source]) => exposesMain(source));
 };
 
 const firstCommentRegexp = /\{\-\|((?:.|\n)*?)\s*\-\}\n+/m;
 
-const parseDocComment = (filename, source, width, height) => {
-  var m = source.match(firstCommentRegexp);
-  var tags = {};
-  var description = "";
+const parseDocComment = (
+  filename: string,
+  source: string,
+  width: number,
+  height: number,
+): Example => {
+  const m = source.match(firstCommentRegexp);
+  const tags: Tags = {};
+  let description = "";
   if (m) {
-    var firstComment = m[1];
+    const firstComment = m[1];
     const atTagRegexp = /@(\w+)\s+(.+?)(?:\n|$)/g;
 
-    let match;
+    let match: RegExpExecArray | null;
     while ((match = atTagRegexp.exec(firstComment))) {
-      const [_, tag, value] = match;
-      if (tags[tag]) {
-        if (Array.isArray(tags[tag])) {
-          tags[tag].push(value);
-        } else {
-          tags[tag] = [tags[tag], value];
-        }
+      const [, tag, value] = match;
+      const existing = tags[tag];
+      if (existing !== undefined) {
+        if (Array.isArray(existing)) existing.push(value);
+        else tags[tag] = [existing, value];
       } else {
         tags[tag] = value;
       }
@@ -54,18 +65,24 @@ const parseDocComment = (filename, source, width, height) => {
     description = firstComment.replace(atTagRegexp, "");
     source = source.replace(firstCommentRegexp, "\n");
   }
+  const tagWidth = typeof tags.width === "string" ? Number(tags.width) : NaN;
+  const tagHeight = typeof tags.height === "string" ? Number(tags.height) : NaN;
   return {
     filename,
     source,
     description,
     tags,
     basename: path.basename(filename, ".elm"),
-    width: tags.width || width,
-    height: tags.height || height,
+    width: Number.isNaN(tagWidth) ? width : tagWidth,
+    height: Number.isNaN(tagHeight) ? height : tagHeight,
   };
 };
 
-export default async (inputDir, width, height) => {
+export default async (
+  inputDir: string,
+  width: number,
+  height: number,
+): Promise<Example[]> => {
   console.log(chalk.green.bold("Gathering all elligble examples"));
   const examples = await findElligibleFiles(inputDir);
   return examples.map(([name, source]) =>

@@ -1,24 +1,32 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import * as log from "./log.js";
+import type { Example, EllieConfig } from "./types.js";
 
-const authenticate = async () => {
+type Ellie = {
+  title: string;
+  elmCode: string;
+  htmlCode: string;
+  dependencies: Record<string, string>;
+};
+
+const authenticate = async (): Promise<string> => {
   const request = await fetch("https://ellie-app.com/api", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      query: `mutation { 
-            authenticate: authenticate 
+      query: `mutation {
+            authenticate: authenticate
           }`,
     }),
   });
-  const response = await request.json();
+  const response = (await request.json()) as {
+    data: { authenticate: string };
+  };
   return response.data.authenticate;
 };
 
-const saveEllie = async (token, ellie) => {
+const saveEllie = async (token: string, ellie: Ellie): Promise<string> => {
   const request = await fetch("https://ellie-app.com/api", {
     method: "POST",
     headers: {
@@ -46,28 +54,32 @@ const saveEllie = async (token, ellie) => {
     }`,
     }),
   });
-  const response = await request.json();
+  const response = (await request.json()) as {
+    data: { revision: { id: string } };
+  };
   return `https://ellie-app.com/${response.data.revision.id}`;
 };
 
-export default async (examples, inputDir, opts) => {
+export default async (
+  examples: Example[],
+  inputDir: string,
+  opts: EllieConfig,
+): Promise<Example[]> => {
   log.heading("Publishing Ellies");
   const token = await authenticate();
   log.generated("Authenticated with Ellie API");
 
-  const elmJson = await fs
-    .readFile(path.join(inputDir, "elm.json"))
-    .then(JSON.parse);
+  const elmJson = JSON.parse(
+    await fs.readFile(path.join(inputDir, "elm.json"), "utf8"),
+  ) as { dependencies: { direct: Record<string, string> } };
 
-  const newExamples = await Promise.all(
-    examples.map(async (example) => {
+  return Promise.all(
+    examples.map(async (example): Promise<Example> => {
       let source = example.source;
-      if (example.tags.requires) {
+      const requires = example.tags.requires;
+      if (requires) {
         if (opts.baseUrl) {
-          (Array.isArray(example.tags.requires)
-            ? example.tags.requires
-            : [example.tags.requires]
-          ).forEach((req) => {
+          (Array.isArray(requires) ? requires : [requires]).forEach((req) => {
             source = source.replace(
               `"${req}"`,
               `"${opts.baseUrl}/${example.basename}/${req}"`,
@@ -81,7 +93,7 @@ export default async (examples, inputDir, opts) => {
         }
       }
 
-      const ellie = {
+      const ellie: Ellie = {
         title: example.basename,
         elmCode: source,
         htmlCode: `<html>
@@ -97,7 +109,7 @@ export default async (examples, inputDir, opts) => {
               // you can use ports and stuff here
             </script>
           </body>
-          </html>      
+          </html>
           `,
         dependencies: {
           ...elmJson.dependencies.direct,
@@ -107,8 +119,7 @@ export default async (examples, inputDir, opts) => {
 
       const ellieLink = await saveEllie(token, ellie);
       log.generated(`${example.basename}: ${ellieLink}`);
-      return { ...example, tags: { ...example.tags, ellieLink } };
+      return { ...example, ellieLink };
     }),
   );
-  return newExamples;
 };

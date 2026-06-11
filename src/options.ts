@@ -2,12 +2,30 @@ import chalk from "chalk";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import type { Options } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Raw options as parsed by commander (paths unresolved, flags possibly unset).
+export type RawOptions = {
+  inputDir?: string;
+  outputDir?: string;
+  width?: number;
+  height?: number;
+  templateFile?: string;
+  assetDir?: string;
+  debug?: boolean;
+  ellie?: boolean;
+  baseUrl?: string | null;
+  screenshots?: boolean;
+  watch?: boolean;
+  port?: number;
+  ellieDep?: Record<string, string>;
+};
+
 // Resolves a path to an absolute one, falling back to a default (e.g. the
 // bundled template) when the given path doesn't exist.
-const resolveOr = (p, fallback) => {
+const resolveOr = (p: string, fallback: string): string => {
   const absolute = path.resolve(p);
   if (fs.existsSync(absolute)) return absolute;
   console.log(
@@ -29,19 +47,12 @@ export default ({
   screenshots = true,
   watch = false,
   port = 8181,
-  ...opts
-}) => {
-  if (ellie || Object.entries(opts.ellieDep || {}).length > 0) {
-    ellie = {
-      baseUrl,
-      additionalDependencies: opts.ellieDep || {},
-    };
-  }
-
+  ellieDep = {},
+}: RawOptions): Options => {
   const absOutputDir = path.resolve(outputDir);
   fs.mkdirSync(absOutputDir, { recursive: true });
 
-  const options = {
+  const options: Options = {
     inputDir: path.resolve(inputDir),
     outputDir: absOutputDir,
     width,
@@ -55,7 +66,10 @@ export default ({
       path.resolve(__dirname, "templates", "assets"),
     ),
     debug,
-    ellie,
+    ellie:
+      ellie || Object.keys(ellieDep).length > 0
+        ? { baseUrl, additionalDependencies: ellieDep }
+        : false,
     screenshots,
     watch,
     port,

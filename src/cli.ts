@@ -5,13 +5,17 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import main from "./index.js";
+import processOptions, { type RawOptions } from "./options.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
   readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),
-);
+) as { version: string };
 
-const dependency = (dep, previous) => {
+const dependency = (
+  dep: string,
+  previous: Record<string, string>,
+): Record<string, string> => {
   const [name, version] = dep.trim().split("@");
   if (!name.match(/^\S+\/\S+$/)) {
     console.warn(
@@ -19,12 +23,12 @@ const dependency = (dep, previous) => {
     );
     console.warn("Proceeding anyway. Hit ^C to abort.");
   }
-  if (!version.match(/^\d+\.\d+\.\d+$/)) {
+  if (!version || !version.match(/^\d+\.\d+\.\d+$/)) {
     console.error(
       "Expected dependency version to be MAJOR.MINOR.PATCH, instead found: " +
         version,
     );
-    throw "Aborting";
+    throw new Error("Aborting");
   }
   return { ...previous, [name]: version };
 };
@@ -48,7 +52,7 @@ program
   )
   .option(
     "--asset-dir <dir>",
-    "Copy this directory to outp (default = ./docs/assets)",
+    "Copy this directory to output (default = ./docs/assets)",
   )
   .option("--width <pixels>", "Width of the webpage (default = 990)", parseInt)
   .option(
@@ -64,7 +68,7 @@ program
   .option(
     "--port <port>",
     "Port for the --watch dev server (default = 8181)",
-    (v) => parseInt(v, 10),
+    (v: string) => parseInt(v, 10),
   )
   .option("--debug", "Turns on debug mode which will spit out more output")
   .option("--ellie", "Will create a new Ellie for each example")
@@ -80,7 +84,7 @@ program
   )
   .parse(process.argv);
 
-main(program.opts()).catch(function (e) {
+main(processOptions(program.opts<RawOptions>())).catch((e: unknown) => {
   console.error("Something went wrong");
   console.error(e);
   process.exit(1);
