@@ -57,7 +57,15 @@ program
     parseInt,
   )
   .option("--no-screenshots", "Skips taking screenshots of the examples")
-  .option("--no-compile", "Skips compiling the examples")
+  .option(
+    "--watch",
+    "Rebuild incrementally on changes and serve the site with live reload",
+  )
+  .option(
+    "--port <port>",
+    "Port for the --watch dev server (default = 8181)",
+    (v) => parseInt(v, 10),
+  )
   .option("--debug", "Turns on debug mode which will spit out more output")
   .option("--ellie", "Will create a new Ellie for each example")
   .option(

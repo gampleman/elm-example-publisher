@@ -5,36 +5,15 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const Path = (relative, absolute) => {
-  absolute = absolute || path.resolve(relative);
-  return {
-    relative,
-    absolute,
-    join(...segments) {
-      return Path(
-        path.join(relative, ...segments),
-        path.join(absolute, ...segments),
-      );
-    },
-    toString() {
-      return relative;
-    },
-    ensure() {
-      fs.mkdirSync(absolute, { recursive: true });
-      return this;
-    },
-    ifNotExists(other) {
-      if (!fs.existsSync(absolute)) {
-        console.log(
-          chalk.yellow(
-            `The path ${relative} doesn't exist. Falling back to ${other}.`,
-          ),
-        );
-        return Path(other, other);
-      }
-      return this;
-    },
-  };
+// Resolves a path to an absolute one, falling back to a default (e.g. the
+// bundled template) when the given path doesn't exist.
+const resolveOr = (p, fallback) => {
+  const absolute = path.resolve(p);
+  if (fs.existsSync(absolute)) return absolute;
+  console.log(
+    chalk.yellow(`The path ${p} doesn't exist. Falling back to ${fallback}.`),
+  );
+  return fallback;
 };
 
 export default ({
@@ -48,30 +27,38 @@ export default ({
   ellie = false,
   baseUrl = null,
   screenshots = true,
-  compile = true,
+  watch = false,
+  port = 8181,
   ...opts
 }) => {
-  if (ellie || Object.entries(opts.ellieDep).length > 0) {
+  if (ellie || Object.entries(opts.ellieDep || {}).length > 0) {
     ellie = {
       baseUrl,
-      additionalDependencies: opts.ellieDep,
+      additionalDependencies: opts.ellieDep || {},
     };
   }
+
+  const absOutputDir = path.resolve(outputDir);
+  fs.mkdirSync(absOutputDir, { recursive: true });
+
   const options = {
-    inputDir: Path(inputDir),
-    outputDir: Path(outputDir).ensure(),
+    inputDir: path.resolve(inputDir),
+    outputDir: absOutputDir,
     width,
     height,
-    templateFile: Path(templateFile).ifNotExists(
+    templateFile: resolveOr(
+      templateFile,
       path.resolve(__dirname, "templates", "Docs.elm"),
     ),
-    assetDir: Path(assetDir).ifNotExists(
+    assetDir: resolveOr(
+      assetDir,
       path.resolve(__dirname, "templates", "assets"),
     ),
     debug,
     ellie,
-    screenshots: compile && screenshots,
-    compile,
+    screenshots,
+    watch,
+    port,
   };
   if (debug) {
     console.log(

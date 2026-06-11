@@ -19,7 +19,7 @@ export const exposesMain = (source) => {
 };
 
 const findElligibleFiles = async (inputDir) => {
-  const files = await glob(inputDir.absolute + "/*.elm", {
+  const files = await glob(inputDir + "/*.elm", {
     windowsPathsNoEscape: true,
   });
   const fileDetails = await Promise.all(

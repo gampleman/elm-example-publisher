@@ -22,7 +22,6 @@ These programs should render some output that should all fit into some dimension
 **Customized with:**
 
 - `--output-dir <dir>` tells it where to write the output files. Defaults to a directory called `/build`
-- `--no-compile` will skip this step. Useful mostly for quickly iterating on the templates (see below).
 
 #### 3. Taking screenshots
 
@@ -60,6 +59,27 @@ Then, the script will load a template Elm program (by default this program resid
 - `--output-dir <dir>` tells it where to write the output files
 - `--template-file <file>` tells it the path to the Elm template file used to produce the docs website. Defaults to `/docs/Docs.elm`.
 - `--asset-path <dir>` this directory will be copied to the output path verbatim. Useful for things like styles or images for the website.
+
+## Incremental builds and watch mode
+
+Builds are incremental. The first build does the full work; subsequent builds
+reuse a cache (stored as `.borek-cache.json` in the output directory) and redo
+only the work affected by what actually changed — edit one example and only that
+example is recompiled and re-screenshotted. A no-op rebuild of a large site
+takes about a second.
+
+For development, `--watch` rebuilds on every change and serves the site with
+live reload, so the browser refreshes automatically as you edit examples,
+templates, or assets:
+
+```
+elm-example-publisher --watch
+```
+
+**Customized with:**
+
+- `--watch` rebuilds incrementally on change and serves the site with live reload.
+- `--port <port>` sets the dev server port (default `8181`).
 
 ## Installation
 

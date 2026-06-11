@@ -1,5 +1,7 @@
 port module ExamplePublisher exposing (Document, Example, Program, application)
 
+{-| -}
+
 import Browser
 import Html exposing (Html)
 import Json.Decode as Decode exposing (Decoder, Value)
@@ -26,20 +28,17 @@ type alias Example tags =
 
 
 type alias Model tags =
-    { examples : List (Example tags)
-    , state : State
+    { target : Target tags
     }
 
 
-type State
-    = ListView
-    | ShowView String
-    | Error
+type Target tags
+    = Index (List (Example tags))
+    | Show (Example tags) (List (Example tags))
 
 
 type Msg
-    = Proceed String
-    | Noop
+    = Noop
 
 
 type alias Program tags =
@@ -54,10 +53,10 @@ application :
     -> Program tags
 application config =
     Browser.document
-        { init = init config.tagDecoder config.indexView
+        { init = init config
         , view = view config.indexView config.showView
-        , update = update config.showView
-        , subscriptions = subscriptions
+        , update = \_ model -> ( model, Cmd.none )
+        , subscriptions = \_ -> Sub.none
         }
 
 
@@ -86,14 +85,16 @@ renderPage name meta =
 port errorPort : String -> Cmd msg
 
 
-init : Decoder tags -> (List (Example tags) -> Document) -> Value -> ( Model tags, Cmd Msg )
-init tagDecoder listView flags =
-    case Decode.decodeValue (exampleDecoder tagDecoder) flags of
-        Ok examples ->
-            ( { examples = examples, state = ListView }, renderPage "index" (listView examples).meta )
+init config flags =
+    case Decode.decodeValue (flagsDecoder config.tagDecoder) flags of
+        Ok ((Index examples) as target) ->
+            ( { target = target }, renderPage "index" (config.indexView examples).meta )
+
+        Ok ((Show example examples) as target) ->
+            ( { target = target }, renderPage example.basename (config.showView example examples).meta )
 
         Err errr ->
-            ( { examples = [], state = Error }, errorPort (Decode.errorToString errr) )
+            ( { target = Index [] }, errorPort (Decode.errorToString errr) )
 
 
 renderShowView : (Example tags -> List (Example tags) -> Document) -> String -> List (Example tags) -> Document
@@ -112,34 +113,33 @@ renderShowView showView name examples =
 view listView showView model =
     let
         { body, title } =
-            case model.state of
-                ListView ->
-                    listView model.examples
+            case model.target of
+                Index examples ->
+                    listView examples
 
-                ShowView name ->
-                    renderShowView showView name model.examples
-
-                Error ->
-                    { body = [], title = "error", meta = [] }
+                Show example examples ->
+                    showView example examples
     in
     { body = List.map (Html.map never) body, title = title }
 
 
-update : (Example tags -> List (Example tags) -> Document) -> Msg -> Model tags -> ( Model tags, Cmd Msg )
-update showView msg model =
-    case msg of
-        Proceed name ->
-            ( { model | state = ShowView name }, renderPage name (renderShowView showView name model.examples).meta )
+flagsDecoder tagDecoder =
+    Decode.map2 Tuple.pair
+        (Decode.field "render" Decode.string)
+        (Decode.field "examples" (exampleDecoder tagDecoder))
+        |> Decode.andThen
+            (\( target, examples ) ->
+                if target == "index" then
+                    Decode.succeed (Index examples)
 
-        Noop ->
-            ( model, Cmd.none )
+                else
+                    case List.filter (\example -> example.basename == target) examples |> List.head of
+                        Just example ->
+                            Decode.succeed (Show example examples)
 
-
-port proceed : (String -> msg) -> Sub msg
-
-
-subscriptions model =
-    proceed Proceed
+                        Nothing ->
+                            Decode.fail "Couldn't find example to render"
+            )
 
 
 exampleDecoder tagDecoder =

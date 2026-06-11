@@ -31,6 +31,10 @@ test("exposesMain: ineligible modules", () => {
     "helper = 1\n",
   ];
   for (const source of ineligible) {
-    assert.equal(exposesMain(source), false, `should be ineligible:\n${source}`);
+    assert.equal(
+      exposesMain(source),
+      false,
+      `should be ineligible:\n${source}`,
+    );
   }
 });

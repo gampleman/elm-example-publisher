@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import path from "node:path";
 import * as log from "./log.js";
 
 const authenticate = async () => {
@@ -55,7 +56,7 @@ export default async (examples, inputDir, opts) => {
   log.generated("Authenticated with Ellie API");
 
   const elmJson = await fs
-    .readFile(inputDir.join("elm.json").absolute)
+    .readFile(path.join(inputDir, "elm.json"))
     .then(JSON.parse);
 
   const newExamples = await Promise.all(
