@@ -122,10 +122,14 @@ export class Borek<Input extends object = Record<string, never>> {
     return JSON.parse(await this.readFile(filePath)) as T;
   }
 
-  async copyFile(from: string, to: string): Promise<void> {
+  // Copies `from` to `to`, depending on the source's contents. Returns a File
+  // marker for the destination so the caller can also record it as an output
+  // (its hash then participates in invalidation like any other File result).
+  async copyFile(from: string, to: string): Promise<FileResult> {
     await this.file(from);
     await fsp.mkdir(path.dirname(to), { recursive: true });
     await fsp.copyFile(from, to);
+    return File(to);
   }
 
   // Tracked glob: returns the sorted matching paths and depends on that set.
