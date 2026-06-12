@@ -62,15 +62,27 @@ export const startServer = (rootPath: string): Promise<RunningServer> =>
     });
   });
 
-// Launch flags that keep Chrome happy in CI (commonly runs as root, where Chrome
-// refuses to start without --no-sandbox). Puppeteer downloads its own Chrome;
-// PUPPETEER_EXECUTABLE_PATH can override it.
-export const launchBrowser = (debug: boolean): Promise<Browser> =>
-  puppeteer.launch({
-    headless: !debug,
+// Launch flags that keep Chrome happy in CI (commonly runs as root, where
+// Chrome refuses to start without --no-sandbox).
+//
+// headless: "shell" uses chrome-headless-shell, the lightweight headless build
+// purpose-made for screenshotting. Puppeteer >=22 defaults `headless: true` to
+// the *full* Chrome ("new" headless), which is much heavier — on constrained CI
+// (Netlify) that made every capture take ~70s. The old puppeteer-5 publisher
+// used the old light headless and was fast; "shell" restores that.
+// (debug mode launches headful so you can watch the browser.)
+// Puppeteer downloads its own Chrome; PUPPETEER_EXECUTABLE_PATH can override it.
+export const launchBrowser = async (debug: boolean): Promise<Browser> => {
+  const browser = await puppeteer.launch({
+    headless: debug ? false : "shell",
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    // Cap the protocol timeout so a stuck operation fails fast with a clear
+    // error rather than hanging at puppeteer's 180s default.
+    protocolTimeout: 90_000,
     ...(debug ? { slowMo: 100 } : {}),
   });
+  return browser;
+};
 
 type ImageFormat = "png" | "webp";
 
@@ -88,26 +100,37 @@ export async function snapPicture(
   debug: boolean,
 ): Promise<string> {
   const bigPicture = path.join(outputDir, exampleDir, name + "@3x.png");
-  const page = await browser.newPage();
 
-  if (debug) {
-    page.on("console", (message) => {
-      const { url: u, lineNumber } = message.location();
-      const loc = u ? ` (${u}${lineNumber ? `:${lineNumber}` : ""})` : "";
-      console.log(`\nPage log:${loc}\n${message.text()}\n`);
-    });
-    page.on("pageerror", (error) => console.log("\nPage error:", error, "\n"));
-  }
-
+  let page;
   try {
+    page = await browser.newPage();
+    if (debug) {
+      page.on("console", (message) => {
+        const { url: u, lineNumber } = message.location();
+        const loc = u ? ` (${u}${lineNumber ? `:${lineNumber}` : ""})` : "";
+        console.log(`\nPage log:${loc}\n${message.text()}\n`);
+      });
+      page.on("pageerror", (error) =>
+        console.log("\nPage error:", error, "\n"),
+      );
+    }
     await page.setViewport({ width, height, deviceScaleFactor: 1 });
-    await page.goto(url, { timeout: 60 * 1000, waitUntil: "networkidle2" });
+    // networkidle0 (zero in-flight connections), not networkidle2 (<=2): some
+    // examples fetch data in chained requests (geocode -> weather -> ...), and
+    // networkidle2 can fire in the gap between them, capturing a "Loading…"
+    // state. Waiting for fully-idle network lets those finish first.
+    await page.goto(url, { timeout: 45_000, waitUntil: "networkidle0" });
     if (delay) {
       await new Promise((resolve) => setTimeout(resolve, delay * 1000));
     }
     await page.screenshot({ path: bigPicture as `${string}.png` });
+  } catch (error) {
+    // Attribute failures to the specific page, which the bare puppeteer error
+    // doesn't do.
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to screenshot ${url}: ${message}`);
   } finally {
-    await page.close();
+    if (page) await page.close();
   }
   return bigPicture;
 }
