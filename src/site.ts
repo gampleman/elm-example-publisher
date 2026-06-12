@@ -9,6 +9,7 @@ import { parseExample } from "./gather.js";
 import { renderExamplePage, renderIndexPage } from "./buildPage.js";
 import compileExample from "./compileExample.js";
 import { snapPicture, resize } from "./screenshot.js";
+import type { Semaphore } from "./semaphore.js";
 import type { Browser } from "puppeteer";
 import type { Example, Options } from "./types.js";
 
@@ -20,11 +21,13 @@ const { compileToString, findAllDependencies } = elm;
 const publisherDir = path.dirname(fileURLToPath(import.meta.url));
 
 // Runtime resources shared across the build that aren't plain options: the
-// screenshot server URL, the headless browser, and an optional examples list
-// pre-augmented with Ellie links.
+// screenshot server URL, the headless browser, a semaphore bounding how many
+// browser pages are open at once, and an optional examples list pre-augmented
+// with Ellie links.
 export type SiteRuntime = {
   baseUrl: string | null;
   browser: Browser | null;
+  screenshotLimit: Semaphore;
   examplesOverride: Example[] | null;
 };
 
@@ -216,19 +219,24 @@ export class Site extends Borek<Options> {
     }`;
     const delay =
       typeof example.tags.delay === "string" ? Number(example.tags.delay) : 0;
-    return this.file(
-      await snapPicture(
+    const outputDir = await this.input("outputDir");
+    const debug = await this.input("debug");
+    // Bound concurrency: open at most N browser pages at once. Opening one per
+    // example in parallel starves constrained CI machines and times out.
+    const file = await this.runtime.screenshotLimit(() =>
+      snapPicture(
         this.runtime.browser!,
-        await this.input("outputDir"),
+        outputDir,
         example.basename,
         name,
         url,
         delay,
         example.width,
         example.height,
-        await this.input("debug"),
+        debug,
       ),
     );
+    return this.file(file);
   }
 
   async resizedScreenshot(
