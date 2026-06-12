@@ -1,5 +1,7 @@
 import EventEmitter from "node:events";
 import { watch as fsWatch, type FSWatcher } from "node:fs";
+import { promises as fsp } from "node:fs";
+import path from "node:path";
 import {
   buildSystem,
   Volatile,
@@ -9,12 +11,16 @@ import {
   type Invalidator,
 } from "./engine.js";
 import {
+  File,
+  Glob,
   hashFile,
   invalidateChangedFiles,
   isFile,
   isGlob,
   expandGlob,
   globBaseDir,
+  type FileResult,
+  type GlobResult,
 } from "./files.js";
 
 export type BorekConfig = {
@@ -33,9 +39,19 @@ type Internals = {
 };
 const internals = new WeakMap<object, Internals>();
 
-// `input` is a real (built-in) task so it participates in dependency tracking
-// and Volatile unwrapping; only the constructor is excluded from task dispatch.
-const RESERVED = new Set<string>(["constructor"]);
+// `input`, `file`, and `glob` are real (built-in) tasks: they participate in
+// dependency tracking and Volatile unwrapping, so they dispatch through the
+// proxy. The tracked-IO helpers (readFile/readJSON/copyFile/globFiles) and the
+// constructor are NOT tasks — they run directly, recording dependencies via the
+// primitives above. Excluding them from dispatch keeps `this` inside them bound
+// to the recording instance so their `this.file(...)` calls record correctly.
+const RESERVED = new Set<string>([
+  "constructor",
+  "readFile",
+  "readJSON",
+  "copyFile",
+  "globFiles",
+]);
 
 /**
  * Base class for a Borek build. Subclass it and define `async` methods — each
@@ -59,6 +75,11 @@ const RESERVED = new Set<string>(["constructor"]);
  * `Input` is the shape of the constructor's first argument; `this.input(key)`
  * reads a value from it in a Volatile (re-checked every run) manner — the
  * intended way to thread runtime inputs such as CLI flags into the graph.
+ *
+ * To depend on the filesystem, use the tracked-IO helpers (`this.readFile`,
+ * `this.readJSON`, `this.copyFile`, `this.globFiles`) rather than `node:fs`
+ * directly: each one both reads and records the dependency in a single call, so
+ * there is no separate "declare a dependency" step to forget.
  */
 export class Borek<Input extends object = Record<string, never>> {
   constructor(input: Input, config: BorekConfig) {
@@ -74,6 +95,43 @@ export class Borek<Input extends object = Record<string, never>> {
   async input<K extends keyof Input>(key: K): Promise<Input[K]> {
     const state = internals.get(this)!;
     return Volatile(state.input[key as string] as Input[K]);
+  }
+
+  // Built-in task: declares a dependency on a file's contents. The engine hashes
+  // the file, so the task's value (and its dependents) change when the file
+  // does. Prefer the readFile/copyFile helpers, which call this for you.
+  async file(filePath: string): Promise<FileResult> {
+    return File(filePath);
+  }
+
+  // Built-in task: declares a dependency on the set of paths matching a glob
+  // pattern (add/remove of a match invalidates dependents; modifications are
+  // tracked per-file via file()). Prefer globFiles, which returns the paths.
+  async glob(pattern: string): Promise<GlobResult> {
+    return Glob(pattern);
+  }
+
+  // Tracked IO: read a file and depend on it in one call. Use these instead of
+  // node:fs so the path you read is always the path you track.
+  async readFile(filePath: string): Promise<string> {
+    await this.file(filePath);
+    return fsp.readFile(filePath, "utf8");
+  }
+
+  async readJSON<T = unknown>(filePath: string): Promise<T> {
+    return JSON.parse(await this.readFile(filePath)) as T;
+  }
+
+  async copyFile(from: string, to: string): Promise<void> {
+    await this.file(from);
+    await fsp.mkdir(path.dirname(to), { recursive: true });
+    await fsp.copyFile(from, to);
+  }
+
+  // Tracked glob: returns the sorted matching paths and depends on that set.
+  async globFiles(pattern: string): Promise<string[]> {
+    const result = await this.glob(pattern);
+    return result.paths ?? [];
   }
 }
 

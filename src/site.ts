@@ -3,9 +3,9 @@ import os from "node:os";
 import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import elm from "node-elm-compiler";
-import { Borek, Volatile, File, Glob } from "./borek/index.js";
-import type { FileResult, GlobResult } from "./borek/index.js";
-import { parseExampleFile } from "./gather.js";
+import { Borek, Volatile } from "./borek/index.js";
+import type { FileResult } from "./borek/index.js";
+import { parseExample } from "./gather.js";
 import { renderExamplePage, renderIndexPage } from "./buildPage.js";
 import compileExample from "./compileExample.js";
 import { snapPicture, resize } from "./screenshot.js";
@@ -30,8 +30,9 @@ export type SiteRuntime = {
 
 // The whole build expressed as a Borek task graph. Each example compile, each
 // resized screenshot, each page render, asset copy, and the template compile is
-// a cached task; file dependencies are declared via dependsOnFile /
-// dependsOnElmFile so a change re-runs exactly the affected work.
+// a cached task; file dependencies are recorded implicitly by the tracked-IO
+// helpers (this.readFile / this.copyFile / this.globFiles) so a change re-runs
+// exactly the affected work.
 export class Site extends Borek<Options> {
   private runtime: SiteRuntime;
 
@@ -58,21 +59,14 @@ export class Site extends Borek<Options> {
     return true;
   }
 
-  // The set of candidate example files. A Glob result, so adding or removing a
-  // *.elm file invalidates gather, but editing one does not (that flows through
-  // parseExample's per-file dependency instead).
-  async exampleFiles(): Promise<GlobResult> {
-    const inputDir = await this.input("inputDir");
-    return Glob(path.join(inputDir, "*.elm"));
-  }
-
-  // Parses a single example file, keyed by its path. Depends on the file's
-  // contents, so editing it re-runs only this task (and its dependents).
-  // Returns null for files that aren't eligible examples (no exposed `main`).
+  // Parses a single example file, keyed by its path. readFile both reads and
+  // records the dependency, so editing the file re-runs only this task (and its
+  // dependents). Returns null for files that aren't eligible examples.
   async parseExample(file: string): Promise<Example | null> {
-    await this.dependsOnFile(file);
-    return parseExampleFile(
+    const source = await this.readFile(file);
+    return parseExample(
       file,
+      source,
       await this.input("width"),
       await this.input("height"),
     );
@@ -83,28 +77,23 @@ export class Site extends Borek<Options> {
     if (this.runtime.examplesOverride) {
       return Volatile(this.runtime.examplesOverride);
     }
-    const { paths } = await this.exampleFiles();
+    // globFiles tracks the set of *.elm paths: adding/removing one re-runs
+    // gather, while editing one flows through parseExample's readFile instead.
+    const inputDir = await this.input("inputDir");
+    const paths = await this.globFiles(path.join(inputDir, "*.elm"));
     const parsed = await Promise.all(
-      (paths ?? []).map((file) => this.parseExample(file)),
+      paths.map((file) => this.parseExample(file)),
     );
     return parsed.filter((e): e is Example => e !== null);
   }
 
-  async dependsOnFile(file: string): Promise<FileResult> {
-    return File(file);
-  }
-
-  async dependsOnElmFile(file: string): Promise<FileResult> {
+  // Records a dependency on an Elm module and all of its transitive imports.
+  // The Elm compiler reads these files itself, so we track them in parallel:
+  // this is the one place tracking can't be folded into the read.
+  async trackElmModule(file: string): Promise<void> {
+    await this.file(file);
     const dependencies = await findAllDependencies(file);
-    await Promise.all(dependencies.map((dep) => this.dependsOnFile(dep)));
-    return File(file);
-  }
-
-  async copyStaticAsset(from: string, to: string): Promise<FileResult> {
-    await this.dependsOnFile(from);
-    await fs.mkdir(path.dirname(to), { recursive: true });
-    await fs.copyFile(from, to);
-    return File(to);
+    await Promise.all(dependencies.map((dep) => this.file(dep)));
   }
 
   async gatherAssets(): Promise<string[]> {
@@ -119,7 +108,7 @@ export class Site extends Borek<Options> {
     const files = await this.gatherAssets();
     await Promise.all(
       files.map((file) =>
-        this.copyStaticAsset(
+        this.copyFile(
           path.join(assetDir, file),
           path.join(outputDir, path.basename(assetDir), file),
         ),
@@ -134,12 +123,12 @@ export class Site extends Borek<Options> {
     const inputDir = await this.input("inputDir");
     const [example] = await this.gather();
     await compileExample(example, inputDir, await this.input("outputDir"));
-    return File(path.join(inputDir, "elm.json"));
+    return this.file(path.join(inputDir, "elm.json"));
   }
 
   async compileExample(example: Example): Promise<FileResult> {
     await this.downloadDependencies();
-    await this.dependsOnElmFile(example.filename);
+    await this.trackElmModule(example.filename);
     const inputDir = await this.input("inputDir");
     const outputDir = await this.input("outputDir");
     const result = await compileExample(example, inputDir, outputDir);
@@ -147,13 +136,13 @@ export class Site extends Borek<Options> {
       [example.tags.requires ?? []]
         .flat()
         .map((dep) =>
-          this.copyStaticAsset(
+          this.copyFile(
             path.join(inputDir, dep),
             path.join(outputDir, example.basename, dep),
           ),
         ),
     );
-    return File(result);
+    return this.file(result);
   }
 
   async prepareTemplate(): Promise<string> {
@@ -163,8 +152,7 @@ export class Site extends Borek<Options> {
     );
     const curDir = path.dirname(templateFile);
     const elmJsonPath = path.join(curDir, "elm.json");
-    await this.dependsOnFile(elmJsonPath);
-    const elmJson = JSON.parse(await fs.readFile(elmJsonPath, "utf8")) as {
+    const elmJson = JSON.parse(await this.readFile(elmJsonPath)) as {
       "source-directories": string[];
     };
     elmJson["source-directories"] = elmJson["source-directories"]
@@ -175,12 +163,12 @@ export class Site extends Borek<Options> {
       JSON.stringify(elmJson),
       "utf8",
     );
-    await this.dependsOnElmFile(templateFile);
+    await this.trackElmModule(templateFile);
     return compileToString([templateFile], { optimize: true, cwd: workDir });
   }
 
   async buildIndexPage(): Promise<FileResult> {
-    return File(
+    return this.file(
       await renderIndexPage(
         await this.input("outputDir"),
         await this.prepareTemplate(),
@@ -194,7 +182,7 @@ export class Site extends Borek<Options> {
       this.compileExample(example),
       this.renderExample(example),
     ]);
-    return File(page);
+    return this.file(page);
   }
 
   async renderExample(example: Example): Promise<string> {
@@ -228,7 +216,7 @@ export class Site extends Borek<Options> {
     }`;
     const delay =
       typeof example.tags.delay === "string" ? Number(example.tags.delay) : 0;
-    return File(
+    return this.file(
       await snapPicture(
         this.runtime.browser!,
         await this.input("outputDir"),
@@ -254,6 +242,6 @@ export class Site extends Borek<Options> {
     const baseName = path.join(outputDir, example.basename, name);
     const w = Math.floor(example.width / 3);
     const h = Math.floor(example.height / 3);
-    return File(await resize(baseName, picture.path, w, h, scale, format));
+    return this.file(await resize(baseName, picture.path, w, h, scale, format));
   }
 }

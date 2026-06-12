@@ -78,14 +78,15 @@ const parseDocComment = (
   };
 };
 
-// Reads and parses a single example file. Returns null if the file doesn't
-// expose `main` (and so isn't an eligible example).
-export const parseExampleFile = async (
+// Parses one example from already-read source. Returns null if it doesn't
+// expose `main` (and so isn't an eligible example). The caller reads the file
+// (via tracked IO) so this stays a pure function of its inputs.
+export const parseExample = (
   filename: string,
+  source: string,
   width: number,
   height: number,
-): Promise<Example | null> => {
-  const source = await fs.readFile(filename, "utf8");
+): Example | null => {
   if (!exposesMain(source)) return null;
   return parseDocComment(filename, source, width, height);
 };

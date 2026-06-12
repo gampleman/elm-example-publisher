@@ -3,30 +3,23 @@ import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { Borek, Glob, File, inMemoryStore } from "./index.js";
+import { Borek, inMemoryStore } from "./index.js";
 
-// A build that globs *.txt under the input dir and "parses" each matched file.
-// `parseLog` records which files were (re-)parsed in a given run.
+// A build that globs *.txt under the input dir and "parses" each matched file,
+// using the tracked-IO API (globFiles + readFile). `parseLog` records which
+// files were (re-)parsed in a given run.
 class Files extends Borek<{ dir: string }> {
   parseLog: string[] = [];
 
-  async listing(): Promise<{ paths?: string[] }> {
-    return Glob(join(await this.input("dir"), "*.txt"));
-  }
-
   async parse(file: string): Promise<string> {
-    await this.dependsOnFile(file);
+    const contents = await this.readFile(file);
     this.parseLog.push(file);
-    return file;
-  }
-
-  async dependsOnFile(file: string) {
-    return File(file);
+    return contents;
   }
 
   async all(): Promise<string[]> {
-    const { paths } = await this.listing();
-    return Promise.all((paths ?? []).map((p) => this.parse(p)));
+    const paths = await this.globFiles(join(await this.input("dir"), "*.txt"));
+    return Promise.all(paths.map((p) => this.parse(p)));
   }
 }
 
@@ -44,10 +37,7 @@ test("glob: add/delete/modify selectivity", async () => {
 
     let f = make(dir, store);
     let result = await f.all();
-    assert.deepEqual(
-      result.map((p) => p.endsWith("a.txt") || p.endsWith("b.txt")),
-      [true, true],
-    );
+    assert.deepEqual(result.sort(), ["a", "b"], "reads both files' contents");
     assert.equal(f.parseLog.length, 2, "first run parses both");
 
     // No change -> nothing re-parses.

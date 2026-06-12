@@ -186,3 +186,39 @@ test("File dependencies re-run only the task whose file changed", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("readFile tracks the dependency without a separate declare call", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "borek-readfile-"));
+  const a = join(dir, "a.txt");
+  const b = join(dir, "b.txt");
+  try {
+    await writeFile(a, "a1");
+    await writeFile(b, "b1");
+    const log: string[] = [];
+    // Note: no File()/dependsOnFile — readFile both reads and tracks.
+    class T extends Borek<{ a: string; b: string }> {
+      async both() {
+        return [await this.readA(), await this.readB()];
+      }
+      async readA() {
+        log.push("A");
+        return this.readFile(await this.input("a"));
+      }
+      async readB() {
+        log.push("B");
+        return this.readFile(await this.input("b"));
+      }
+    }
+    const t = new T({ a, b }, { store: inMemoryStore() });
+    assert.deepEqual(await t.both(), ["a1", "b1"]);
+    log.length = 0;
+    await t.both();
+    assert.deepEqual(log, [], "no-op: nothing re-reads");
+    log.length = 0;
+    await writeFile(b, "b2");
+    assert.deepEqual(await t.both(), ["a1", "b2"]);
+    assert.deepEqual(log, ["B"], "only the changed file re-reads");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
