@@ -75,6 +75,29 @@ type GuardRunning = <T>(
   fn: () => Promise<T>,
 ) => Promise<T>;
 
+// Recomputes a task during dependency verification, reporting whether its value
+// changed. If recomputation throws — typically because an input file was deleted
+// and this task is no longer reachable — we treat it as "changed" rather than
+// failing the whole build: the dependent re-runs and re-establishes its real
+// dependency set (which may no longer include this task). If the dependent does
+// still need it, the error resurfaces when its body re-invokes the task.
+const recomputeForVerification = async (
+  store: Store,
+  guardRunning: GuardRunning,
+  key: Key,
+  fn: Tasks,
+  previousValue: unknown,
+): Promise<boolean> => {
+  try {
+    const result = await guardRunning(key, "execute", () =>
+      execute(store, guardRunning, key, fn),
+    );
+    return !isDeepStrictEqual(normalizeResult(result), previousValue);
+  } catch {
+    return true;
+  }
+};
+
 const executeMissingDependencies = async (
   store: Store,
   guardRunning: GuardRunning,
@@ -93,17 +116,23 @@ const executeMissingDependencies = async (
     // If any dependency changed, recompute this task and report whether its
     // own value changed (so callers up the chain can early-exit if not).
     if (results.some((changed) => changed)) {
-      const result = await guardRunning(key, "execute", () =>
-        execute(store, guardRunning, key, fn),
+      return recomputeForVerification(
+        store,
+        guardRunning,
+        key,
+        fn,
+        existing.value,
       );
-      return !isDeepStrictEqual(normalizeResult(result), existing.value);
     }
     return false;
   } else if (existing) {
-    const result = await guardRunning(key, "execute", () =>
-      execute(store, guardRunning, key, fn),
+    return recomputeForVerification(
+      store,
+      guardRunning,
+      key,
+      fn,
+      existing.value,
     );
-    return !isDeepStrictEqual(existing.value, normalizeResult(result));
   } else {
     await guardRunning(key, "execute", () =>
       execute(store, guardRunning, key, fn),

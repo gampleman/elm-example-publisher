@@ -3,9 +3,9 @@ import os from "node:os";
 import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import elm from "node-elm-compiler";
-import { Borek, Volatile, File } from "./borek/index.js";
-import type { FileResult } from "./borek/index.js";
-import gather from "./gather.js";
+import { Borek, Volatile, File, Glob } from "./borek/index.js";
+import type { FileResult, GlobResult } from "./borek/index.js";
+import { parseExampleFile } from "./gather.js";
 import { renderExamplePage, renderIndexPage } from "./buildPage.js";
 import compileExample from "./compileExample.js";
 import { snapPicture, resize } from "./screenshot.js";
@@ -58,17 +58,36 @@ export class Site extends Borek<Options> {
     return true;
   }
 
+  // The set of candidate example files. A Glob result, so adding or removing a
+  // *.elm file invalidates gather, but editing one does not (that flows through
+  // parseExample's per-file dependency instead).
+  async exampleFiles(): Promise<GlobResult> {
+    const inputDir = await this.input("inputDir");
+    return Glob(path.join(inputDir, "*.elm"));
+  }
+
+  // Parses a single example file, keyed by its path. Depends on the file's
+  // contents, so editing it re-runs only this task (and its dependents).
+  // Returns null for files that aren't eligible examples (no exposed `main`).
+  async parseExample(file: string): Promise<Example | null> {
+    await this.dependsOnFile(file);
+    return parseExampleFile(
+      file,
+      await this.input("width"),
+      await this.input("height"),
+    );
+  }
+
   async gather(): Promise<Example[]> {
+    // When Ellie publishing ran up front, use its augmented list verbatim.
     if (this.runtime.examplesOverride) {
       return Volatile(this.runtime.examplesOverride);
     }
-    return Volatile(
-      await gather(
-        await this.input("inputDir"),
-        await this.input("width"),
-        await this.input("height"),
-      ),
+    const { paths } = await this.exampleFiles();
+    const parsed = await Promise.all(
+      (paths ?? []).map((file) => this.parseExample(file)),
     );
+    return parsed.filter((e): e is Example => e !== null);
   }
 
   async dependsOnFile(file: string): Promise<FileResult> {

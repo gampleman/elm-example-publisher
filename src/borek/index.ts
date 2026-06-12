@@ -16,5 +16,12 @@ export type {
   Invalidator,
   BuildConfig,
 } from "./engine.js";
-export { File, Dir, isFile, invalidateChangedFiles } from "./files.js";
-export type { FileResult, DirResult } from "./files.js";
+export {
+  File,
+  Dir,
+  Glob,
+  isFile,
+  isGlob,
+  invalidateChangedFiles,
+} from "./files.js";
+export type { FileResult, DirResult, GlobResult } from "./files.js";

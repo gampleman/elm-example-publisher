@@ -8,7 +8,14 @@ import {
   type Getter,
   type Invalidator,
 } from "./engine.js";
-import { hashFile, invalidateChangedFiles, isFile } from "./files.js";
+import {
+  hashFile,
+  invalidateChangedFiles,
+  isFile,
+  isGlob,
+  expandGlob,
+  globBaseDir,
+} from "./files.js";
 
 export type BorekConfig = {
   store: Store;
@@ -106,6 +113,9 @@ const makeTasks =
     if (isFile(result) && result.hash === undefined) {
       return { ...result, hash: await hashFile(result.path) };
     }
+    if (isGlob(result) && result.paths === undefined) {
+      return { ...result, paths: await expandGlob(result.pattern) };
+    }
     return result;
   };
 
@@ -160,21 +170,28 @@ export const watchBuild = (
       emitter.emit("error", error);
     }
     if (stopped) return;
+    const onChange = () => {
+      closeWatchers();
+      process.nextTick(cycle);
+    };
     const seen = new Set<string>();
+    const watchPath = (target: string) => {
+      if (seen.has(target)) return;
+      seen.add(target);
+      try {
+        watchers.push(fsWatch(target, onChange));
+      } catch {
+        // Ignore paths that can't be watched (e.g. just deleted).
+      }
+    };
     for (const [, entry] of store.entries()) {
       const value = entry.value;
-      if (isFile(value) && !seen.has(value.path)) {
-        seen.add(value.path);
-        try {
-          watchers.push(
-            fsWatch(value.path, () => {
-              closeWatchers();
-              process.nextTick(cycle);
-            }),
-          );
-        } catch {
-          // Ignore files that can't be watched (e.g. just deleted).
-        }
+      if (isFile(value)) {
+        watchPath(value.path);
+      } else if (isGlob(value)) {
+        // Watch the glob's base directory so files added to or removed from the
+        // matched set trigger a rebuild (per-file watchers can't see new files).
+        watchPath(globBaseDir(value.pattern));
       }
     }
   };
