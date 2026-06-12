@@ -49,7 +49,8 @@ class Site extends Borek<{ dir: string }> {
 ```
 
 - `this.readFile(path)` / `this.readJSON(path)` — read a file and depend on it.
-- `this.copyFile(from, to)` — copy `from` (depending on it) to `to`.
+- `this.copyFile(from, to)` — copy `from` (depending on it) to `to`; returns a
+  `File` marker for `to` so the destination can be recorded as an output too.
 - `this.globFiles(pattern)` — the sorted matching paths, depending on that set.
 - `this.file(path)` / `this.glob(pattern)` — the underlying primitives, if you
   need to record a dependency without reading (e.g. a file another tool reads).
