@@ -55,6 +55,23 @@ class Site extends Borek<{ dir: string }> {
 - `this.file(path)` / `this.glob(pattern)` — the underlying primitives, if you
   need to record a dependency without reading (e.g. a file another tool reads).
 
+## Reporting progress
+
+Pass a `reporter` in the config to observe the build as it runs. It receives a
+`start`/`finish`/`error` event (with timing) each time a real (non-cached) task
+executes — cache hits stay silent, so a no-op rebuild reports nothing. The
+built-in plumbing tasks (`input`/`file`/`glob` and the tracked-IO helpers) are
+filtered out, so you only see your own task methods:
+
+```ts
+new Site(options, {
+  store,
+  reporter: (e) => {
+    if (e.type === "finish") console.log(`done ${e.key.method} (${e.durationMs}ms)`);
+  },
+});
+```
+
 Under the hood this is driven by a lower-level functional core, `buildSystem`,
 which takes a `tasks` function of `(key, get) => value` (the class adapter turns
 each method into such a task). The `Volatile`, `File`, `Glob`, store, and watch

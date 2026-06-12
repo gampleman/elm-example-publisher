@@ -22,9 +22,13 @@ export const exposesMain = (source: string): boolean => {
 const findElligibleFiles = async (
   inputDir: string,
 ): Promise<[string, string][]> => {
-  const files = await glob(inputDir + "/*.elm", {
-    windowsPathsNoEscape: true,
-  });
+  // Sort so the example order is deterministic: glob returns filesystem order,
+  // which is unstable across machines (macOS vs Linux CI) and even between runs.
+  // An unstable order would defeat incremental caching (every task sees a
+  // different examples list) and make the generated site's order nondeterministic.
+  const files = (
+    await glob(inputDir + "/*.elm", { windowsPathsNoEscape: true })
+  ).sort();
   const fileDetails = await Promise.all(
     files.map(
       async (file): Promise<[string, string]> => [
