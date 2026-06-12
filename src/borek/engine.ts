@@ -30,6 +30,15 @@ export type Getter = (key: Key) => Promise<unknown>;
 export type Tasks = (key: Key, get: Getter) => Promise<unknown>;
 export type Invalidator = (store: Store) => unknown | Promise<unknown>;
 
+// Progress events emitted as the build runs. A Reporter receives these and can
+// render them however it likes (the package layer turns them into log lines).
+export type BuildEvent =
+  | { type: "start"; key: Key }
+  | { type: "finish"; key: Key; durationMs: number }
+  | { type: "error"; key: Key; durationMs: number; error: unknown };
+
+export type Reporter = (event: BuildEvent) => void;
+
 // A wrapper marking a value as non-deterministic: a task returning Volatile is
 // reconsidered on every run, but downstream tasks still early-exit if its value
 // is stable. At the type level it is the identity — the engine unwraps it
@@ -87,10 +96,11 @@ const recomputeForVerification = async (
   key: Key,
   fn: Tasks,
   previousValue: unknown,
+  reporter: Reporter | undefined,
 ): Promise<boolean> => {
   try {
     const result = await guardRunning(key, "execute", () =>
-      execute(store, guardRunning, key, fn),
+      execute(store, guardRunning, key, fn, reporter),
     );
     return !isDeepStrictEqual(normalizeResult(result), previousValue);
   } catch {
@@ -103,13 +113,14 @@ const executeMissingDependencies = async (
   guardRunning: GuardRunning,
   key: Key,
   fn: Tasks,
+  reporter: Reporter | undefined,
 ): Promise<boolean> => {
   const existing = store.get(key);
   if (existing && !existing.stale) {
     const results = await Promise.all(
       existing.dependencies.map((dep) =>
         guardRunning(dep, "executeMissingDependencies", () =>
-          executeMissingDependencies(store, guardRunning, dep, fn),
+          executeMissingDependencies(store, guardRunning, dep, fn, reporter),
         ),
       ),
     );
@@ -122,6 +133,7 @@ const executeMissingDependencies = async (
         key,
         fn,
         existing.value,
+        reporter,
       );
     }
     return false;
@@ -132,10 +144,11 @@ const executeMissingDependencies = async (
       key,
       fn,
       existing.value,
+      reporter,
     );
   } else {
     await guardRunning(key, "execute", () =>
-      execute(store, guardRunning, key, fn),
+      execute(store, guardRunning, key, fn, reporter),
     );
     return true;
   }
@@ -146,20 +159,40 @@ const execute = async (
   guardRunning: GuardRunning,
   key: Key,
   fn: Tasks,
+  reporter: Reporter | undefined,
 ): Promise<unknown> => {
   const dependencies: Key[] = [];
   const recorder: Getter = (newKey) => {
     dependencies.push(newKey);
-    return build(store, guardRunning, newKey, fn);
+    return build(store, guardRunning, newKey, fn, reporter);
   };
-  const result = await fn(key, recorder);
-  store.set(key, {
-    value: normalizeResult(result),
-    dependencies,
-    stale: false,
-    volatile: isVolatile(result),
-  });
-  return normalizeResult(result);
+  // A task reaching execute() is doing real work (not a cache hit), so this is
+  // where progress is reported. Timing is wall-clock for the task body.
+  const start = reporter ? performance.now() : 0;
+  if (reporter) reporter({ type: "start", key });
+  try {
+    const result = await fn(key, recorder);
+    if (reporter) {
+      reporter({ type: "finish", key, durationMs: performance.now() - start });
+    }
+    store.set(key, {
+      value: normalizeResult(result),
+      dependencies,
+      stale: false,
+      volatile: isVolatile(result),
+    });
+    return normalizeResult(result);
+  } catch (error) {
+    if (reporter) {
+      reporter({
+        type: "error",
+        key,
+        durationMs: performance.now() - start,
+        error,
+      });
+    }
+    throw error;
+  }
 };
 
 const build = async (
@@ -167,13 +200,14 @@ const build = async (
   guardRunning: GuardRunning,
   key: Key,
   fn: Tasks,
+  reporter: Reporter | undefined,
 ): Promise<unknown> => {
   if (!store.has(key)) {
     return await guardRunning(key, "execute", () =>
-      execute(store, guardRunning, key, fn),
+      execute(store, guardRunning, key, fn, reporter),
     );
   }
-  await executeMissingDependencies(store, guardRunning, key, fn);
+  await executeMissingDependencies(store, guardRunning, key, fn, reporter);
   return store.get(key)!.value;
 };
 
@@ -181,10 +215,11 @@ export type BuildConfig = {
   tasks: Tasks;
   store: Store;
   invalidator?: Invalidator;
+  reporter?: Reporter;
 };
 
 export const buildSystem =
-  ({ tasks, store, invalidator }: BuildConfig) =>
+  ({ tasks, store, invalidator, reporter }: BuildConfig) =>
   async (target: Key): Promise<unknown> => {
     // Volatile tasks are non-deterministic, so they must be reconsidered every
     // run; marking them stale (rather than always recomputing dependents) lets
@@ -195,7 +230,7 @@ export const buildSystem =
     if (invalidator) await invalidator(store);
     const guardRunning = running();
     try {
-      return await build(store, guardRunning, target, tasks);
+      return await build(store, guardRunning, target, tasks, reporter);
     } finally {
       await store.finalize();
     }

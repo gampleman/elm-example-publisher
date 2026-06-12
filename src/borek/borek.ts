@@ -9,6 +9,7 @@ import {
   type Store,
   type Getter,
   type Invalidator,
+  type Reporter,
 } from "./engine.js";
 import {
   File,
@@ -26,6 +27,10 @@ import {
 export type BorekConfig = {
   store: Store;
   invalidator?: Invalidator;
+  // Receives a progress event each time a real (non-cached) task runs. The
+  // built-in plumbing tasks (input/file/glob and the tracked-IO helpers) are
+  // filtered out, so a reporter only sees the subclass's own task methods.
+  reporter?: Reporter;
 };
 
 // Per-instance internal state, kept in a WeakMap so it never collides with task
@@ -52,6 +57,11 @@ const RESERVED = new Set<string>([
   "copyFile",
   "globFiles",
 ]);
+
+// Built-in tasks that DO dispatch through the engine but are plumbing, not
+// user-meaningful work — filtered out of progress reporting so a reporter only
+// sees the subclass's own task methods.
+const BUILTIN_TASKS = new Set<string>(["input", "file", "glob"]);
 
 /**
  * Base class for a Borek build. Subclass it and define `async` methods — each
@@ -144,10 +154,18 @@ export class Borek<Input extends object = Record<string, never>> {
 const dispatch = (target: object, key: Key): Promise<unknown> => {
   const state = internals.get(target)!;
   if (state.record) return state.record(key);
+  const userReporter = state.config.reporter;
+  // Filter built-in plumbing tasks out of progress events.
+  const reporter: Reporter | undefined = userReporter
+    ? (event) => {
+        if (!BUILTIN_TASKS.has(event.key.method)) userReporter(event);
+      }
+    : undefined;
   return buildSystem({
     tasks: makeTasks(target),
     store: state.config.store,
     invalidator: state.config.invalidator ?? invalidateChangedFiles,
+    reporter,
   })(key);
 };
 

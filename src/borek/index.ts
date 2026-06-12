@@ -15,6 +15,8 @@ export type {
   Getter,
   Invalidator,
   BuildConfig,
+  BuildEvent,
+  Reporter,
 } from "./engine.js";
 export {
   File,

@@ -9,6 +9,7 @@ import type { WatchEmitter } from "./borek/index.js";
 import { Site, type SiteRuntime } from "./site.js";
 import { startServer, launchBrowser } from "./screenshot.js";
 import { createSemaphore } from "./semaphore.js";
+import { createReporter } from "./reporter.js";
 import gather from "./gather.js";
 import publishEllies from "./publishEllies.js";
 import { startDevServer } from "./devServer.js";
@@ -61,6 +62,7 @@ const setup = async (
   const site = new Site(options, runtime, {
     store,
     invalidator: invalidateChangedFiles,
+    reporter: createReporter(),
   });
 
   const teardown = async () => {
