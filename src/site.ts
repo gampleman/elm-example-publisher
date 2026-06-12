@@ -93,10 +93,17 @@ export class Site extends Borek<Options> {
   // Records a dependency on an Elm module and all of its transitive imports.
   // The Elm compiler reads these files itself, so we track them in parallel:
   // this is the one place tracking can't be folded into the read.
-  async trackElmModule(file: string): Promise<void> {
-    await this.file(file);
+  //
+  // Returns the files' content hashes (sorted by path). This matters: the value
+  // must change when any tracked file changes, otherwise a task that depends on
+  // trackElmModule would early-exit ("value unchanged") and never see the edit —
+  // e.g. editing the template wouldn't rebuild the pages.
+  async trackElmModule(file: string): Promise<string[]> {
     const dependencies = await findAllDependencies(file);
-    await Promise.all(dependencies.map((dep) => this.file(dep)));
+    const files = await Promise.all(
+      [file, ...dependencies].map((f) => this.file(f)),
+    );
+    return files.map((f) => `${f.path}:${f.hash ?? ""}`).sort();
   }
 
   async gatherAssets(): Promise<string[]> {

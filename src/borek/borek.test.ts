@@ -222,3 +222,46 @@ test("readFile tracks the dependency without a separate declare call", async () 
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("a file change propagates through a tracking task to its dependents", async () => {
+  // Regression: a task that records file deps must return a value derived from
+  // those files (e.g. their hashes), not void. If it returns a constant, the
+  // engine early-exits ("value unchanged") when the file changes and dependents
+  // never re-run — which previously meant editing the template didn't rebuild
+  // pages.
+  const dir = await mkdtemp(join(tmpdir(), "borek-propagate-"));
+  const src = join(dir, "src.txt");
+  try {
+    await writeFile(src, "v1");
+    const log: string[] = [];
+    class T extends Borek<{ src: string }> {
+      // mimics trackElmModule: records a file dep, returns its hash so the value
+      // changes when the file does.
+      async track() {
+        const f = await this.file(await this.input("src"));
+        return f.hash;
+      }
+      async compile() {
+        log.push("compile");
+        await this.track();
+        return "output";
+      }
+    }
+    const store = inMemoryStore();
+    await new T({ src }, { store }).compile();
+    assert.deepEqual(log, ["compile"]);
+
+    // No change -> no recompile.
+    log.length = 0;
+    await new T({ src }, { store }).compile();
+    assert.deepEqual(log, []);
+
+    // Change the tracked file -> compile must re-run.
+    log.length = 0;
+    await writeFile(src, "v2");
+    await new T({ src }, { store }).compile();
+    assert.deepEqual(log, ["compile"], "file change must propagate to compile");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
