@@ -27,10 +27,37 @@ await calc.foo(); // => 3, runs foo + bar
 await calc.foo(); // => 3, fully cached, nothing re-runs
 ```
 
+## Depending on the filesystem
+
+To depend on files, use the tracked-IO helpers rather than `node:fs` directly —
+each one reads (or copies/lists) **and** records the dependency in a single call,
+so there's no separate "declare a dependency" step to forget:
+
+```ts
+class Site extends Borek<{ dir: string }> {
+  async parse(file: string) {
+    const source = await this.readFile(file); // reads AND tracks `file`
+    return parse(source);
+  }
+  async all() {
+    // globFiles tracks the *set* of matching paths: add/remove of a match
+    // re-runs this task, while edits flow through each parse()'s readFile.
+    const files = await this.globFiles(join(await this.input("dir"), "*.elm"));
+    return Promise.all(files.map((f) => this.parse(f)));
+  }
+}
+```
+
+- `this.readFile(path)` / `this.readJSON(path)` — read a file and depend on it.
+- `this.copyFile(from, to)` — copy `from` (depending on it) to `to`.
+- `this.globFiles(pattern)` — the sorted matching paths, depending on that set.
+- `this.file(path)` / `this.glob(pattern)` — the underlying primitives, if you
+  need to record a dependency without reading (e.g. a file another tool reads).
+
 Under the hood this is driven by a lower-level functional core, `buildSystem`,
 which takes a `tasks` function of `(key, get) => value` (the class adapter turns
-each method into such a task). The `Volatile`, `File`, store, and watch helpers
-are the other pieces.
+each method into such a task). The `Volatile`, `File`, `Glob`, store, and watch
+helpers are the other pieces.
 
 In more concrete terms: Borek manages the execution of tasks in the following manner - It will start by computing the first key. When it encounters a `await get(dependency)` call, it will suspend execution of the initial task and check wheather it has that key in its cache. If not, it will then execute the task for that key and so on.
 
