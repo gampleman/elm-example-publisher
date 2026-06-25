@@ -163,5 +163,5 @@ exampleDecoder tagDecoder =
             (Decode.field "height" Decode.int)
             (Decode.field "source" Decode.string)
             (Decode.field "description" Decode.string)
-            (Decode.maybe (Decode.at [ "tags", "ellieLink" ] Decode.string))
+            (Decode.maybe (Decode.field "ellieLink" Decode.string))
         )
