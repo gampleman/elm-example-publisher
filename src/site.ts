@@ -16,10 +16,15 @@ import type { Example, Options } from "./types.js";
 
 const { compileToString, findAllDependencies } = elm;
 
-// Directory of the published package (so the template compile can add the
-// bundled ExamplePublisher.elm to its source path). In dist/ this resolves to
-// dist/, where copy-assets puts ExamplePublisher.elm.
-const publisherDir = path.dirname(fileURLToPath(import.meta.url));
+// Directory holding the bundled ExamplePublisher.elm, which the template
+// compile adds to its source path. It must be a directory containing *only*
+// that module: Elm refuses to compile a file reachable through two source
+// directories, so pointing this at the package root would make the bundled
+// template (a sibling directory) ambiguous and fail outright.
+const publisherDir = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "elm",
+);
 
 // Runtime resources shared across the build that aren't plain options: the
 // screenshot server URL, the headless browser, a semaphore bounding how many
