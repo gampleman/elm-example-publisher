@@ -8,6 +8,7 @@ import type { FileResult } from "./borek/index.js";
 import { parseExample } from "./gather.js";
 import { renderExamplePage, renderIndexPage } from "./buildPage.js";
 import compileExample from "./compileExample.js";
+import detectElmVersion from "./elmVersion.js";
 import { snapPicture, resize } from "./screenshot.js";
 import type { Semaphore } from "./semaphore.js";
 import type { Browser } from "puppeteer";
@@ -139,6 +140,9 @@ export class Site extends Borek<Options> {
   async compileExample(example: Example): Promise<FileResult> {
     await this.downloadDependencies();
     await this.trackElmModule(example.filename);
+    // Different compilers emit different JavaScript, so a cached example built
+    // by one must not be reused after switching to another.
+    await this.elmVersion();
     const inputDir = await this.input("inputDir");
     const outputDir = await this.input("outputDir");
     const result = await compileExample(example, inputDir, outputDir);
@@ -155,6 +159,13 @@ export class Site extends Borek<Options> {
     return this.file(result);
   }
 
+  // Version of the Elm compiler on PATH, or null if it couldn't be determined.
+  // Volatile, so swapping compilers between runs is noticed; dependents still
+  // early-exit while the version is unchanged.
+  async elmVersion(): Promise<string | null> {
+    return Volatile(await detectElmVersion());
+  }
+
   async prepareTemplate(): Promise<string> {
     const templateFile = await this.input("templateFile");
     const workDir = await fs.mkdtemp(
@@ -164,10 +175,18 @@ export class Site extends Borek<Options> {
     const elmJsonPath = path.join(curDir, "elm.json");
     const elmJson = JSON.parse(await this.readFile(elmJsonPath)) as {
       "source-directories": string[];
+      "elm-version"?: string;
     };
     elmJson["source-directories"] = elmJson["source-directories"]
       .map((p) => path.resolve(curDir, p))
       .concat([publisherDir]);
+    // We compile the template from a generated elm.json anyway, so pin its
+    // exact `elm-version` to the compiler actually running: a template written
+    // against 0.19.1 then still builds under a newer Elm.
+    const elmVersion = await this.elmVersion();
+    if (elmVersion) {
+      elmJson["elm-version"] = elmVersion;
+    }
     await fs.writeFile(
       path.join(workDir, "elm.json"),
       JSON.stringify(elmJson),

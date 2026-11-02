@@ -83,7 +83,12 @@ elm-example-publisher --watch
 
 ## Installation
 
-Requires Node.js 22 or later.
+Requires Node.js 22 or later, and an Elm compiler between 0.19.1 and 0.19.3.
+
+The bundled documentation template works with any of those: the `elm-version`
+in the elm.json used to compile it is set from whichever compiler is on your
+`PATH`. Your own examples are compiled against your own elm.json, so that file
+has to name the compiler you actually have installed.
 
 ```
 npm i -g elm-example-publisher
