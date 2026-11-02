@@ -9,7 +9,7 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const from = (p) => path.join(root, "src", p);
 const to = (p) => path.join(root, "dist", p);
 
-await cp(from("ExamplePublisher.elm"), to("ExamplePublisher.elm"));
+await cp(from("elm"), to("elm"), { recursive: true });
 await cp(from("templates"), to("templates"), { recursive: true });
 
 // Make the compiled CLI executable (the shebang alone isn't enough).
